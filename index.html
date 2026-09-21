@@ -1,1 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>实时听译 · 中英对话翻译</title>
+<meta name="description" content="用手机麦克风实时听取对话，自动识别并中英互译，免 API Key，打开即用。">
+<meta name="theme-color" content="#0b1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="实时听译">
+<link rel="icon" type="image/png" id="siteIcon">
+<style>
+  :root {
+    --bg: #0b1220;
+    --card: #141c2e;
+    --card-2: #1b2540;
+    --line: rgba(255,255,255,.08);
+    --text: #eef2ff;
+    --text-dim: #8b96b5;
+    --accent: #3d7bff;
+    --accent-2: #22d3ee;
+    --good: #34d399;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --radius: 18px;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    overflow-x: hidden;
+  }
+  .app { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px calc(var(--safe-b) + 24px); }
 
+  /* ---------- header ---------- */
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-size: 17px; font-weight: 700; color: #fff; box-shadow: 0 4px 14px rgba(59,130,246,.35);
+  }
+  .brand h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: .3px; }
+  .brand p { margin: 1px 0 0; font-size: 11px; color: var(--text-dim); }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text-dim); font-size: 18px; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .icon-btn:active { background: var(--card-2); }
+
+  /* ---------- status bar ---------- */
+  .status-bar {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 12px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--line);
+    font-size: 12.5px; color: var(--text-dim); margin-bottom: 14px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); flex: none; transition: background .25s; }
+  .dot.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+  .dot.err { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+  #statusText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- main mic button ---------- */
+  .mic-zone { display: flex; flex-direction: column; align-items: center; padding: 18px 0 6px; }
+  .mic-btn {
+    position: relative; width: 118px; height: 118px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(145deg, #2b3a5e, #1a2542);
+    box-shadow: 0 14px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+    display: grid; place-items: center; transition: transform .15s;
+  }
+  .mic-btn:active { transform: scale(.96); }
+  .mic-btn svg { width: 46px; height: 46px; fill: var(--text-dim); transition: fill .25s; }
+  .mic-btn.active { background: linear-gradient(145deg, #1d4ed8, #2563eb); box-shadow: 0 0 0 8px rgba(61,123,255,.16), 0 16px 34px rgba(29,78,216,.5); }
+  .mic-btn.active svg { fill: #fff; }
+  .mic-btn.active::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 50%;
+    border: 2px solid rgba(96,165,250,.5); animation: pulse 1.6s ease-out infinite;
+  }
+  @keyframes pulse { 0% { transform: scale(.98); opacity: 1; } 80% { transform: scale(1.22); opacity: 0; } 100% { opacity: 0; } }
+  .mic-label { margin-top: 14px; font-size: 15px; font-weight: 600; }
+  .mic-sub { margin-top: 3px; font-size: 12px; color: var(--text-dim); text-align: center; }
+
+  /* ---------- direction chooser ---------- */
+  .dir-switch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; margin: 18px 0 4px; }
+  .dir-card {
+    border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+    padding: 12px 8px; text-align: center; cursor: pointer; transition: all .2s;
+  }
+  .dir-card .lg { font-size: 13px; font-weight: 700; }
+  .dir-card .sub { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+  .dir-card.sel { border-color: var(--accent); background: rgba(61,123,255,.12); }
+  .dir-card.sel .lg { color: #7ea5ff; }
+  .dir-arrow { display: grid; place-items: center; font-size: 16px; color: var(--text-dim); }
+
+  /* ---------- live zone ---------- */
+  .live-zone { margin-top: 14px; display: none; }
+  .live-zone.show { display: block; }
+  .live-box {
+    border-radius: var(--radius); background: var(--card); border: 1px solid var(--line);
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: var(--accent-2); letter-spacing: .4px; margin-bottom: 6px; }
+  .tag .b { color: var(--accent); }
+  #interimText { font-size: 16px; min-height: 24px; color: var(--text); }
+  #interimText.placeholder { color: var(--text-dim); font-size: 14px; }
+  #transResult { font-size: 15.5px; min-height: 24px; color: #c7d5ff; }
+  #transResult.loading { color: var(--warn); }
+
+  /* ---------- session ---------- */
+  .session-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 10px; }
+  .session-head h2 { font-size: 14px; margin: 0; color: var(--text-dim); font-weight: 600; letter-spacing: .5px; }
+  .session-head button {
+    background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+  }
+  .session-head button:active { background: rgba(255,255,255,.06); }
+  #sessionList { display: flex; flex-direction: column; gap: 10px; }
+  .seg {
+    border-radius: var(--radius); background: var(--card); border: 1px solid var(--line);
+    padding: 12px 14px; animation: rise .25s ease;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .seg .meta { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .seg .badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .badge.zh { background: rgba(61,123,255,.18); color: #7ea5ff; }
+  .badge.en { background: rgba(34,211,238,.15); color: #5eead4; }
+  .seg .time { font-size: 10.5px; color: var(--text-dim); flex: 1; }
+  .seg .copy { font-size: 11px; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 2px 6px; }
+  .seg .src { font-size: 15px; color: var(--text); }
+  .seg .dst { font-size: 15px; color: #c7d5ff; margin-top: 3px; }
+  .seg .dst.failed { color: var(--bad); font-size: 13px; }
+  .empty { text-align: center; color: var(--text-dim); font-size: 13px; padding: 30px 0; }
+  .empty .big { font-size: 30px; margin-bottom: 8px; }
+
+  /* ---------- sheet / settings ---------- */
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
+  .mask.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    background: #111a2c; border-radius: 22px 22px 0 0; border-top: 1px solid var(--line);
+    transform: translateY(105%); transition: transform .28s cubic-bezier(.2,.8,.25,1);
+    padding: 10px 18px calc(var(--safe-b) + 22px);
+    max-width: 560px; margin: 0 auto;
+  }
+  .sheet.show { transform: none; }
+  .grab { width: 40px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.18); margin: 6px auto 14px; }
+  .sheet h3 { font-size: 15px; margin: 0 0 14px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text); font-size: 14px; outline: none;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; margin-top: 6px; }
+  .btn-primary {
+    width: 100%; padding: 13px; border: none; border-radius: 14px; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), #2f6fe8); color: #fff; font-size: 15px; font-weight: 600;
+    margin-top: 6px;
+  }
+  .btn-primary:active { filter: brightness(1.1); }
+  .note { font-size: 11.5px; color: var(--text-dim); margin-top: 12px; line-height: 1.6; }
+  .note b { color: var(--warn); }
+
+  /* ---------- banner ---------- */
+  .banner {
+    display: none; border-radius: 14px; padding: 13px 15px; font-size: 13px; line-height: 1.7;
+    border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.08); color: #fde68a; margin-bottom: 14px;
+  }
+  .banner.show { display: block; }
+  .banner a { color: #7ea5ff; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">译</div>
+      <div>
+        <h1>实时听译</h1>
+        <p>对话场景 · 中英互译</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="openSettings" aria-label="设置">⚙</button>
+  </header>
+
+  <div class="banner" id="compatBanner"></div>
+
+  <div class="status-bar">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">未开始 · 点击下方麦克风开始听译</span>
+  </div>
+
+  <div class="dir-switch">
+    <div class="dir-card sel" data-dir="z2e" id="cardZ2E">
+      <div class="lg">中文 → English</div>
+      <div class="sub">对方说中文，你回英文</div>
+    </div>
+    <div class="dir-arrow">⇄</div>
+    <div class="dir-card" data-dir="e2z" id="cardE2Z">
+      <div class="lg">English → 中文</div>
+      <div class="sub">对方说英文，你回中文</div>
+    </div>
+  </div>
+
+  <div class="mic-zone">
+    <button class="mic-btn" id="micBtn" aria-label="开始或停止听译">
+      <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
+    </button>
+    <div class="mic-label" id="micLabel">开始听译</div>
+    <div class="mic-sub" id="micSub">识别语言：中文 · 译文：英文</div>
+  </div>
+
+  <div class="live-zone" id="liveZone">
+    <div class="live-box">
+      <span class="tag"><span class="b" id="liveTagSrc">识别（中）</span></span>
+      <div id="interimText" class="placeholder">正在聆听……</div>
+    </div>
+    <div class="live-box">
+      <span class="tag" id="liveTagDst">翻译（英）</span>
+      <div id="transResult">…</div>
+    </div>
+  </div>
+
+  <div class="session-head">
+    <h2>会话记录</h2>
+    <button id="clearBtn">清空</button>
+  </div>
+  <div id="sessionList"><div class="empty"><div class="big">🎙️</div>还没有记录，点麦克风开始吧</div></div>
+</div>
+
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h3>设置</h3>
+  <div class="field">
+    <label>翻译方向（听译）</label>
+    <div class="dir-switch" style="margin:0">
+      <div class="dir-card sel" data-dir2="z2e" id="setCardZ2E"><div class="lg">中 → 英</div><div class="sub">对方说中文</div></div>
+      <div class="dir-arrow">⇄</div>
+      <div class="dir-card" data-dir2="e2z" id="setCardE2Z"><div class="lg">英 → 中</div><div class="sub">对方说英文</div></div>
+    </div>
+  </div>
+  <div class="field">
+    <label>翻译服务</label>
+    <select id="engineSel">
+      <option value="mymemory" selected>免费引擎（MyMemory，无需 Key）</option>
+    </select>
+    <div class="hint">当前采用免费翻译服务，国内网络可达、无需注册。打开即用，零成本。</div>
+  </div>
+  <div class="field">
+    <label>识别语言引擎</label>
+    <select id="langEngineSel">
+      <option value="auto" selected>跟随翻译方向（推荐）</option>
+      <option value="zh-CN">固定中文识别</option>
+      <option value="en-US">固定英文识别</option>
+    </select>
+    <div class="hint">一般保持"跟随翻译方向"即可；特例可手动固定。</div>
+  </div>
+  <button class="btn-primary" id="saveBtn">保存并关闭</button>
+  <div class="note" id="httpxNote"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- 基础工具 ---------------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var cfgKey = "liveTranslatorCfg_v1";
+  var DEFAULT_CFG = { dir: "z2e", engine: "mymemory", langEngine: "auto" };
+  var cfg = null;
+  function loadCfg() {
+    try {
+      var raw = localStorage.getItem(cfgKey);
+      cfg = raw ? Object.assign({}, DEFAULT_CFG, JSON.parse(raw)) : Object.assign({}, DEFAULT_CFG);
+    } catch (e) { cfg = Object.assign({}, DEFAULT_CFG); }
+    return cfg;
+  }
+  function saveCfg() { try { localStorage.setItem(cfgKey, JSON.stringify(cfg)); } catch (e) {} }
+
+  /* ---------------- 语言方向 ---------------- */
+  function dirInfo(mode) {
+    if (mode === "e2z") {
+      return {
+        srcLang: "en-US", srcTag: "英", dstTag: "中",
+        myFrom: "en", myTo: "zh-CN",
+        label: "识别语言：英文 · 译文：中文",
+        liveSrc: "识别（英）", liveDst: "翻译（中）",
+        micSub: "对方说英文，实时译成中文"
+      };
+    }
+    return {
+      srcLang: "zh-CN", srcTag: "中", dstTag: "英",
+      myFrom: "zh-CN", myTo: "en-US",
+      label: "识别语言：中文 · 译文：英文",
+      liveSrc: "识别（中）", liveDst: "翻译（英）",
+      micSub: "对方说中文，实时译成英文"
+    };
+  }
+
+  /* ---------------- 语音识别 ---------------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = null, listening = false, lastFinalIdx = -1, restartFail = 0;
+  var pendingQueue = [];      // 待翻译的句子队列
+  var translating = false;
+
+  function resolveRecLang() {
+    var d = dirInfo(cfg.dir);
+    if (cfg.langEngine === "zh-CN") return "zh-CN";
+    if (cfg.langEngine === "en-US") return "en-US";
+    return d.srcLang;
+  }
+
+  function startListening() {
+    if (!SR) return;
+    try {
+      rec = new SR();
+      rec.lang = resolveRecLang();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+
+      rec.onresult = function (ev) {
+        var interim = "";
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+          var r = ev.results[i];
+          if (r.isFinal) {
+            var t = (r[0] && r[0].transcript || "").trim();
+            if (t && i > lastFinalIdx) {
+              lastFinalIdx = i;
+              pendingQueue.push(t);
+              pumpQueue();
+            }
+          } else if (r[0] && r[0].transcript) {
+            interim += r[0].transcript;
+          }
+        }
+        showInterim(interim);
+      };
+
+      rec.onerror = function (e) {
+        var err = e.error || "unknown";
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          stopListening(false);
+          setStatus("麦克风权限被拒绝，请在浏览器设置中允许", "err");
+        } else if (err === "network") {
+          stopListening(false);
+          setStatus("语音识别服务网络异常，请重试", "err");
+        } else if (err === "no-speech" || err === "aborted" || err === "audio-capture") {
+          // 可恢复错误：忽略并继续
+        } else {
+          // 其他错误：尝试继续
+        }
+      };
+
+      rec.onend = function () {
+        if (listening) {
+          try { rec.start(); restartFail = 0; }
+          catch (e) {
+            restartFail++;
+            if (restartFail > 3) { stopListening(false); setStatus("识别器意外中断，请重试", "err"); }
+            else setTimeout(function () { if (listening) { try { rec.start(); } catch (e2) {} } }, 400);
+          }
+        }
+      };
+
+      rec.start();
+      listening = true;
+      showInterim("");
+      $("liveZone").classList.add("show");
+      setStatus("正在聆听…… 说完一句自动翻译", "on");
+    } catch (e) {
+      setStatus("启动失败：" + (e && e.message || e), "err");
+    }
+  }
+
+  function stopListening(manual) {
+    listening = false;
+    restartFail = 0;
+    if (rec) { try { rec.onend = null; rec.stop(); } catch (e) {} rec = null; }
+    if (manual) setStatus("已停止 · 点击麦克风重新开始", "");
+  }
+
+  /* ---------------- 翻译（MyMemory，免费 / 国内可达 / 支持跨域） ---------------- */
+  function translateText(text, from, to) {
+    var q = text.length > 460 ? text.slice(0, 460) : text;
+    var url = "https://api.mymemory.translated.net/get?" +
+      new URLSearchParams({ q: q, langpair: from + "|" + to });
+    return fetch(url, { method: "GET" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("请求失败(HTTP " + res.status + ")");
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || data.responseStatus !== 200) {
+          var msg = data && data.responseDetails ? data.responseDetails : "翻译服务返回异常";
+          var quota = data && data.quotaFinished;
+          if (quota) msg = "当日免费额度已用完，请稍后再试";
+          throw new Error(msg);
+        }
+        var t = data.responseData && data.responseData.translatedText;
+        if (!t) throw new Error("翻译结果为空");
+        return t;
+      })
+      .catch(function (err) {
+        throw new Error(err && err.message ? err.message : "翻译失败，请检查网络");
+      });
+  }
+
+  function pumpQueue() {
+    if (translating) return;
+    if (!pendingQueue.length) return;
+    translating = true;
+    var text = pendingQueue.shift();
+    var d = dirInfo(cfg.dir);
+    $("transResult").classList.add("loading");
+    $("transResult").textContent = "翻译中…";
+    translateText(text, d.myFrom, d.myTo)
+      .then(function (trans) {
+        addSegment(text, trans, d);
+        $("transResult").classList.remove("loading");
+        $("transResult").textContent = trans;
+      })
+      .catch(function (err) {
+        addSegment(text, null, d, err.message);
+        $("transResult").classList.remove("loading");
+        $("transResult").textContent = "翻译失败";
+        setStatus(err.message, "err");
+      })
+      .then(function () {
+        translating = false;
+        pumpQueue();
+      });
+  }
+
+  /* ---------------- UI ---------------- */
+  function showInterim(text) {
+    var el = $("interimText");
+    if (text) { el.textContent = text; el.classList.remove("placeholder"); }
+    else { el.textContent = "正在聆听……"; el.classList.add("placeholder"); }
+  }
+
+  function setStatus(text, mode) {
+    $("statusText").textContent = text;
+    var dot = $("statusDot");
+    dot.className = "dot" + (mode === "on" ? " on" : mode === "err" ? " err" : "");
+  }
+
+  function setMicUI(on) {
+    var btn = $("micBtn");
+    btn.classList.toggle("active", on);
+    $("micLabel").textContent = on ? "停止听译" : "开始听译";
+    $("micSub").textContent = on ? "正在实时听译，点击停止" : dirInfo(cfg.dir).micSub;
+  }
+
+  function addSegment(src, dst, d, errMsg) {
+    var list = $("sessionList");
+    var empty = list.querySelector(".empty");
+    if (empty) empty.remove();
+    var seg = document.createElement("div");
+    seg.className = "seg";
+    var time = new Date();
+    var ts = ("0" + time.getHours()).slice(-2) + ":" + ("0" + time.getMinutes()).slice(-2) + ":" + ("0" + time.getSeconds()).slice(-2);
+    var copy = document.createElement("button");
+    copy.className = "copy";
+    copy.textContent = "复制";
+    copy.onclick = function () { copyText(dst || src, copy); };
+    seg.innerHTML =
+      '<div class="meta"><span class="badge ' + (cfg.dir === "e2z" ? "en" : "zh") + '">' + d.srcTag + '</span>' +
+      '<span class="time">' + ts + '</span></div>' +
+      '<div class="src"></div>' +
+      '<div class="dst"></div>';
+    seg.querySelector(".src").textContent = src;
+    var dstEl = seg.querySelector(".dst");
+    if (dst) { dstEl.textContent = dst; }
+    else { dstEl.textContent = "翻译失败：" + (errMsg || "未知错误"); dstEl.className += " failed"; }
+    seg.appendChild(copy);
+    list.prepend(seg);
+    // 最多保留 40 条
+    while (list.children.length > 40) list.removeChild(list.lastChild);
+  }
+
+  function copyText(text, btn) {
+    function done(ok) {
+      if (btn) {
+        btn.textContent = ok ? "已复制" : "复制";
+        if (ok) setTimeout(function () { btn.textContent = "复制"; }, 1400);
+      }
+      if (!ok) setStatus("复制失败（需要 https 环境）", "err");
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { legacyCopy(text, done); });
+    } else { legacyCopy(text, done); }
+  }
+  function legacyCopy(text, done) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      done(ok);
+    } catch (e) { done(false); }
+  }
+
+  /* ---------------- 方向切换 ---------------- */
+  function applyDir(mode) {
+    cfg.dir = mode;
+    saveCfg();
+    var d = dirInfo(mode);
+    document.querySelectorAll(".dir-card[data-dir]").forEach(function (el) {
+      el.classList.toggle("sel", el.getAttribute("data-dir") === mode);
+    });
+    document.querySelectorAll(".dir-card[data-dir2]").forEach(function (el) {
+      el.classList.toggle("sel", el.getAttribute("data-dir2") === mode);
+    });
+    $("micSub").textContent = listening ? "正在实时听译，点击停止" : d.micSub;
+    $("liveTagSrc").textContent = d.liveSrc;
+    $("liveTagDst").textContent = d.liveDst;
+    // 切换方向后重新以新语言启动
+    if (listening) { stopListening(false); setTimeout(startListening, 150); }
+  }
+
+  /* ---------------- 设置面板 ---------------- */
+  function openSheet() { $("sheet").classList.add("show"); $("mask").classList.add("show"); }
+  function closeSheet() {
+    $("sheet").classList.remove("show"); $("mask").classList.remove("show");
+    // 回读当前配置到控件
+    $("langEngineSel").value = cfg.langEngine;
+  }
+  function saveAndClose() { closeSheet(); }
+
+  /* ---------------- 兼容性提示 ---------------- */
+  function compatCheck() {
+    var banner = $("compatBanner");
+    var msgs = [];
+    if (!SR) {
+      msgs.push("当前浏览器不支持语音识别。请使用手机 Chrome / Edge（Android）或 Safari 16+（iPhone），并确保通过 <b>https</b> 打开本页。");
+    }
+    if (SR && !window.isSecureContext && location.protocol !== "file:") {
+      msgs.push("语音识别需要安全环境：请通过 <b>https</b> 打开本页（如部署到 GitHub Pages），局域网 http 或本地 file 打开可能无法调用麦克风。");
+    }
+    if (msgs.length) {
+      banner.innerHTML = "⚠️ " + msgs.join("<br>⚠️ ");
+      banner.classList.add("show");
+    }
+    var note = $("httpxNote");
+    if (location.protocol === "file:") {
+      note.innerHTML = "📌 <b>重要：</b>以 file:// 直接打开时，iPhone Safari 限制麦克风访问。<br>推荐把本文件部署到任意 https 静态托管（如 GitHub Pages、Vercel），手机访问网址即可使用；<br>Android Chrome 在 file:// 下一般可用，iPhone 请务必走 https。";
+    } else if (location.protocol === "http:" && !/^(localhost|127\.)/.test(location.hostname)) {
+      note.innerHTML = "📌 当前为 http 访问。iOS 语音识别需要 https，建议部署到 https 地址后使用。";
+    } else {
+      note.innerHTML = "📌 数据说明：语音识别与翻译均在设备浏览器中实时完成，不上传你的语音录音，仅将识别出的文字发送给翻译服务。";
+    }
+  }
+
+  /* ---------------- PWA: 图标 + manifest ---------------- */
+  function buildIcon() {
+    var c = document.createElement("canvas");
+    c.width = c.height = 192;
+    var x = c.getContext("2d");
+    var g = x.createLinearGradient(0, 0, 192, 192);
+    g.addColorStop(0, "#3d7bff"); g.addColorStop(1, "#22d3ee");
+    x.fillStyle = g;
+    x.beginPath();
+    if (x.roundRect) { x.roundRect(24, 24, 144, 144, 36); x.fill(); }
+    else { x.fillRect(24, 24, 144, 144); }
+    x.fillStyle = "#fff";
+    x.font = "700 84px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillText("译", 96, 100);
+    return c.toDataURL("image/png");
+  }
+
+  function setupPWA() {
+    var icon = buildIcon();
+    $("siteIcon").href = icon;
+    var link = document.createElement("link");
+    link.rel = "apple-touch-icon";
+    link.href = icon;
+    document.head.appendChild(link);
+    if ("onbeforeinstallprompt" in window || true) {
+      // Android Chrome PWA manifest（data URI，含图标）
+      var manifest = {
+        name: "实时听译 - 中英对话翻译",
+        short_name: "实时听译",
+        description: "手机麦克风实时听取对话并中英互译",
+        start_url: location.href.split("#")[0],
+        display: "standalone",
+        background_color: "#0b1220",
+        theme_color: "#0b1220",
+        lang: "zh-CN",
+        icons: [{ src: icon, sizes: "192x192", type: "image/png", purpose: "any" }]
+      };
+      var m = document.createElement("link");
+      m.rel = "manifest";
+      m.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(manifest));
+      document.head.appendChild(m);
+    }
+  }
+
+  /* ---------------- 绑定事件 ---------------- */
+  function init() {
+    loadCfg();
+    applyDir(cfg.dir);
+    compatCheck();
+    setupPWA();
+
+    $("micBtn").onclick = function () {
+      if (!SR) { setStatus("浏览器不支持语音识别，请换用手机 Chrome/Safari 16+", "err"); return; }
+      if (listening) { stopListening(true); setMicUI(false); }
+      else { startListening(); setMicUI(true); }
+    };
+
+    document.querySelectorAll(".dir-card[data-dir]").forEach(function (el) {
+      el.onclick = function () { applyDir(el.getAttribute("data-dir")); };
+    });
+    document.querySelectorAll(".dir-card[data-dir2]").forEach(function (el) {
+      el.onclick = function () { applyDir(el.getAttribute("data-dir2")); refreshSheetSel(); };
+    });
+
+    $("openSettings").onclick = function () {
+      refreshSheetSel();
+      openSheet();
+    };
+    $("mask").onclick = closeSheet;
+    $("saveBtn").onclick = saveAndClose;
+    $("clearBtn").onclick = function () {
+      if (confirm("确定清空全部会话记录吗？")) {
+        $("sessionList").innerHTML = '<div class="empty"><div class="big">🎙️</div>还没有记录，点麦克风开始吧</div>';
+      }
+    };
+    $("langEngineSel").onchange = function () {
+      cfg.langEngine = this.value; saveCfg();
+      if (listening) { stopListening(false); setTimeout(startListening, 150); }
+    };
+
+    window.addEventListener("error", function (e) {
+      console.error(e.message);
+      setStatus("页面异常：" + e.message, "err");
+    });
+  }
+
+  function refreshSheetSel() {
+    document.querySelectorAll(".dir-card[data-dir2]").forEach(function (el) {
+      el.classList.toggle("sel", el.getAttribute("data-dir2") === cfg.dir);
+    });
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
