@@ -355,6 +355,7 @@
   var pendingQueue = [], translating = false;
   var lastFinalText = "";
   var nativeRec = null;
+  var frameInterval = null, silenceTimer = null;
 
   /* ================= 方向配置 ================= */
   function dirInfo(mode) {
@@ -413,24 +414,30 @@
   /* ================= 音频采集 ================= */
   var audioCtx = null, sourceNode = null, processorNode = null;
   function startAudioCapture(onChunk) {
-    return navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } }).then(function (stream) {
+    return navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function (stream) {
       audioStream = stream;
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var sourceRate = audioCtx.sampleRate;
+      var targetRate = 16000;
+      var ratio = targetRate / sourceRate;
       sourceNode = audioCtx.createMediaStreamSource(stream);
-      var bufferSize = 4096;
+      var bufferSize = 2048;
       processorNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
       processorNode.onaudioprocess = function (e) {
         var input = e.inputBuffer.getChannelData(0);
-        var len = input.length;
-        var pcm = new Int16Array(len);
-        for (var i = 0; i < len; i++) {
-          var s = Math.max(-1, Math.min(1, input[i]));
-          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        var outLen = Math.max(1, Math.floor(input.length * ratio));
+        var pcm = new Int16Array(outLen);
+        for (var i = 0; i < outLen; i++) {
+          var idx = i / ratio;
+          var i0 = Math.floor(idx);
+          var frac = idx - i0;
+          var v = input[i0] + ((input[i0 + 1] || input[i0]) - input[i0]) * frac;
+          v = Math.max(-1, Math.min(1, v));
+          pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
         }
         onChunk(pcm);
       };
       sourceNode.connect(processorNode);
-      processorNode.connect(audioCtx.destination);
       return true;
     });
   }
@@ -449,26 +456,46 @@
       ws.binaryType = "arraybuffer";
       var audioBuffer = [];
       var totalLen = 0;
+      var isSpeaking = false;
 
       ws.onopen = function () {
         startedOnce = true; restartFail = 0;
         setStatus("正在聆听…… 说完一句自动翻译", "on");
         startAudioCapture(function (pcm) {
           if (!listening || !ws || ws.readyState !== 1) return;
+          // 检测语音活跃度（基于能量阈值）
+          var energy = 0;
+          for (var k = 0; k < Math.min(pcm.length, 256); k++) { var v = pcm[k] / 32768; energy += v * v; }
+          var hasVoice = energy > 0.0005;
+          if (hasVoice) { isSpeaking = true; if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } }
+          else if (isSpeaking && !silenceTimer) {
+            silenceTimer = setTimeout(function () { isSpeaking = false; }, 500);
+          }
           audioBuffer.push(pcm);
           totalLen += pcm.length;
-          // 每 0.3s 或 4096 样本发送一次
-          if (totalLen >= 4096) {
+          // 每 0.2s 或 32768 样本（≈2秒@16kHz）发送一次
+          if (totalLen >= 32768) {
             var combined = new Int16Array(totalLen);
             var offset = 0;
             for (var i = 0; i < audioBuffer.length; i++) { combined.set(audioBuffer[i], offset); offset += audioBuffer[i].length; }
             audioBuffer = []; totalLen = 0;
             var base64 = arrayBufferToBase64(combined.buffer);
-            sendAudioFrame(base64, false);
+            sendAudioFrame(base64, 1);
           }
         }).then(function () {
           // 首帧
-          sendAudioFrame("", true);
+          sendAudioFrame("", 0);
+          // 定时 flush 未发送的音频（确保不丢尾音）
+          frameInterval = setInterval(function () {
+            if (!listening || !ws || ws.readyState !== 1) return;
+            if (totalLen > 0) {
+              var combined = new Int16Array(totalLen);
+              var offset = 0;
+              for (var i = 0; i < audioBuffer.length; i++) { combined.set(audioBuffer[i], offset); offset += audioBuffer[i].length; }
+              audioBuffer = []; totalLen = 0;
+              sendAudioFrame(arrayBufferToBase64(combined.buffer), 1);
+            }
+          }, 500);
         }).catch(function (err) {
           setStatus("无法获取麦克风：" + err.message, "err");
           stopIflytek();
@@ -477,7 +504,7 @@
 
       ws.onmessage = function (evt) {
         var data = JSON.parse(evt.data);
-        if (data.code !== 0) { setStatus("讯飞错误：" + data.message, "err"); stopIflytek(); return; }
+        if (data.code !== 0) { setStatus("讯飞错误：" + data.message, "err"); if (data.code === 11200) { setStatus("鉴权错误，请检查 API Key", "err"); } stopIflytek(); return; }
         var res = data.data;
         if (res && res.result) {
           var wsResult = res.result.ws || [];
@@ -494,23 +521,26 @@
           showInterim(text || "正在聆听……");
         }
         if (res && res.status === 2) {
-          // 讯飞判定一句话结束，自动开启新会话继续听
-          setTimeout(function () { if (listening) startIflytek(); }, 300);
+          // 讯飞判定一句话结束，发送结束帧后自动开启新会话
+          sendAudioFrame("", 2);
+          if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+          if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+          setTimeout(function () { if (listening) startIflytek(); }, 500);
         }
       };
 
       ws.onerror = function () { setStatus("连接出错，正在重试…", "err"); retryIflytek(); };
-      ws.onclose = function () { if (listening) retryIflytek(); };
+      ws.onclose = function () { if (frameInterval) { clearInterval(frameInterval); frameInterval = null; } if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } if (listening) retryIflytek(); };
     }).catch(function (err) {
       setStatus("鉴权失败：" + err.message, "err");
     });
   }
 
-  function sendAudioFrame(base64, isFirst) {
+  function sendAudioFrame(base64, statusCode) {
     var frame = {
       common: { app_id: xconfig.appId },
-      business: { language: cfg.dir === "z2e" ? "zh_cn" : "en_us", domain: "iat", accent: "mandarin", vad_eos: 3000, dwa: "wpgs" },
-      data: { status: isFirst ? 0 : 1, format: "audio/L16;rate=16000", encoding: "raw", audio: base64 }
+      business: { language: cfg.dir === "z2e" ? "zh_cn" : "en_us", domain: "iat", accent: cfg.dir === "z2e" ? "mandarin" : "mandarin", vad_eos: 5000, dwa: "wpgs" },
+      data: { status: statusCode, format: "audio/L16;rate=16000", encoding: "raw", audio: base64 }
     };
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(frame));
   }
@@ -530,6 +560,9 @@
 
   function stopIflytek() {
     listening = false; startedOnce = false;
+    if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+    if (ws && ws.readyState === 1) { try { sendAudioFrame("", 2); } catch (e) {} }
     if (ws) { ws.close(); ws = null; }
     stopAudioCapture();
     setMicUI(false);
