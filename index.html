@@ -578,7 +578,7 @@ function startRecording() {
   isRecording = true;
   currentSession = {
     id: DB.generateId(),
-    customerId: currentCustomer.id,
+    customerId: currentCustomer ? currentCustomer.id : null,
     startTime: new Date().toISOString(),
     segments: [],
     signals: [],
@@ -598,7 +598,7 @@ function stopRecording() {
   if (currentSession && currentSession.segments.length > 0) {
     document.getElementById('saveZone').style.display = 'block';
     generateInsight();
-    // 如果未关联客户，结束时弹出
+    // 如果未关联客户，结束时弹出关联窗口
     if (!currentCustomer) showCustomerModal();
   }
 }
@@ -867,6 +867,7 @@ function saveConversation() {
 
 function saveCurrentSession() {
   if (!currentSession || !currentSession.segments.length) return;
+  if (!currentCustomer) { showToast('未选择客户，无法保存'); return; }
   currentSession.endTime = new Date().toISOString();
   currentSession.customerId = currentCustomer.id;
   const conversations = DB.getConversations();
