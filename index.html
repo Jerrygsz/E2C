@@ -627,81 +627,92 @@ function buildAuthUrl() {
     });
 }
 
+function pcmToBase64(pcm) {
+  const bytes = new Uint8Array(pcm.buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+let debugFramesSent = 0, debugFramesRecv = 0;
 function startIflytek() {
-  buildAuthUrl().then(url => {
-    ws = new WebSocket(url);
-    ws.binaryType = 'arraybuffer';
-    let audioBuffer = [], totalLen = 0;
-    let isSpeaking = false;
+  debugFramesSent = 0; debugFramesRecv = 0;
+  let audioBuffer = [], totalLen = 0;
+  let localWs = null;
 
-    ws.onopen = () => {
-      document.getElementById('statusText').textContent = '正在聆听...';
-      navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } })
-        .then(stream => {
-          audioStream = stream;
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          audioCtx.resume();
-          const sourceRate = audioCtx.sampleRate;
-          const ratio = 16000 / sourceRate;
-          sourceNode = audioCtx.createMediaStreamSource(stream);
-          processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
-          const muteGain = audioCtx.createGain();
-          muteGain.gain.value = 0;
-          processorNode.onaudioprocess = e => {
-            if (!isRecording) return;
-            const input = e.inputBuffer.getChannelData(0);
-            const outLen = Math.max(1, Math.floor(input.length * ratio));
-            const pcm = new Int16Array(outLen);
-            for (let i = 0; i < outLen; i++) {
-              const idx = i / ratio;
-              const i0 = Math.floor(idx);
-              const frac = idx - i0;
-              let v = input[i0] + ((input[i0 + 1] || input[i0]) - input[i0]) * frac;
-              v = Math.max(-1, Math.min(1, v));
-              pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
-            }
-            // Voice activity detection
-            let energy = 0;
-            for (let k = 0; k < Math.min(pcm.length, 256); k++) {
-              const vv = pcm[k] / 32768; energy += vv * vv;
-            }
-            const hasVoice = energy > 0.0005;
-            if (hasVoice) { isSpeaking = true; if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } }
-            else if (isSpeaking && !silenceTimer) {
-              silenceTimer = setTimeout(() => { isSpeaking = false; }, 500);
-            }
-            audioBuffer.push(pcm); totalLen += pcm.length;
-            if (totalLen >= 32768) {
-              const combined = new Int16Array(totalLen);
-              let offset = 0;
-              for (const chunk of audioBuffer) { combined.set(chunk, offset); offset += chunk.length; }
-              audioBuffer = []; totalLen = 0;
-              sendFrame(btoa(String.fromCharCode(...new Uint8Array(combined.buffer))), 1);
-            }
-          };
-          sourceNode.connect(processorNode);
-          processorNode.connect(muteGain);
-          muteGain.connect(audioCtx.destination);
-          sendFrame('', 0);
-          frameInterval = setInterval(() => {
-            if (!isRecording || !ws || ws.readyState !== 1) return;
-            if (totalLen > 0) {
-              const combined = new Int16Array(totalLen);
-              let offset = 0;
-              for (const chunk of audioBuffer) { combined.set(chunk, offset); offset += chunk.length; }
-              audioBuffer = []; totalLen = 0;
-              sendFrame(btoa(String.fromCharCode(...new Uint8Array(combined.buffer))), 1);
-            }
-          }, 500);
-        })
-        .catch(err => { showToast('麦克风错误: ' + err.message); stopRecording(); });
-    };
+  function flushAudio(force) {
+    if (!isRecording || !localWs || localWs.readyState !== 1) return;
+    if (totalLen === 0 && !force) return;
+    const combined = new Int16Array(totalLen);
+    let offset = 0;
+    for (const chunk of audioBuffer) { combined.set(chunk, offset); offset += chunk.length; }
+    audioBuffer = []; totalLen = 0;
+    const base64 = pcmToBase64(combined);
+    sendFrame(base64, force ? 2 : 1, localWs);
+    debugFramesSent++;
+  }
 
-    ws.onmessage = evt => {
-      const data = JSON.parse(evt.data);
-      if (data.code !== 0) { showToast('讯飞错误: ' + data.message); return; }
-      const res = data.data;
-      if (res && res.result) {
+  // Step 1: Start audio capture FIRST
+  navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
+    .then(stream => {
+      audioStream = stream;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      return audioCtx.resume();
+    })
+    .then(() => {
+      const sourceRate = audioCtx.sampleRate;
+      const ratio = 16000 / sourceRate;
+      sourceNode = audioCtx.createMediaStreamSource(audioStream);
+      processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
+      const muteGain = audioCtx.createGain();
+      muteGain.gain.value = 0;
+
+      processorNode.onaudioprocess = e => {
+        if (!isRecording) return;
+        const input = e.inputBuffer.getChannelData(0);
+        const outLen = Math.max(1, Math.floor(input.length * ratio));
+        const pcm = new Int16Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+          const idx = Math.min(i / ratio, input.length - 1);
+          const i0 = Math.floor(idx);
+          const i1 = Math.min(i0 + 1, input.length - 1);
+          const frac = idx - i0;
+          let v = input[i0] + (input[i1] - input[i0]) * frac;
+          v = Math.max(-1, Math.min(1, v));
+          pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
+        }
+        audioBuffer.push(pcm); totalLen += pcm.length;
+        if (totalLen >= 32768) flushAudio(false);
+      };
+
+      sourceNode.connect(processorNode);
+      processorNode.connect(muteGain);
+      muteGain.connect(audioCtx.destination);
+
+      // Step 2: Connect WebSocket
+      return buildAuthUrl();
+    })
+    .then(url => {
+      localWs = ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        document.getElementById('statusText').textContent = '正在聆听...';
+        sendFrame('', 0, localWs);
+        debugFramesSent++;
+        // Flush any buffered audio every 300ms
+        frameInterval = setInterval(() => flushAudio(false), 300);
+      };
+
+      ws.onmessage = evt => {
+        debugFramesRecv++;
+        const data = JSON.parse(evt.data);
+        if (data.code !== 0) { showToast('讯飞错误: ' + data.message); return; }
+        const res = data.data;
+        if (!res || !res.result) return;
         const wsResult = res.result.ws || [];
         let text = '';
         for (const w of wsResult) text += w.cw[0].w;
@@ -717,22 +728,26 @@ function startIflytek() {
           });
         }
         if (res.status === 2) {
-          sendFrame('', 2);
+          flushAudio(true); // force flush remaining audio with status=2
           if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
-          if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
           setTimeout(() => { if (isRecording) startIflytek(); }, 500);
         }
-      }
-    };
+      };
 
-    ws.onerror = () => { showToast('连接错误，重试中...'); };
-    ws.onclose = () => { if (isRecording) setTimeout(() => startIflytek(), 800); };
-  });
+      ws.onerror = err => { console.error('[E2C] WS error', err); };
+      ws.onclose = () => { if (isRecording) setTimeout(() => startIflytek(), 800); };
+    })
+    .catch(err => {
+      console.error('[E2C] Audio setup error:', err);
+      showToast('麦克风/音频错误: ' + err.message);
+      stopRecording();
+    });
 }
 
-function sendFrame(audio, status) {
-  if (!ws || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({
+function sendFrame(audio, status, targetWs) {
+  const socket = targetWs || ws;
+  if (!socket || socket.readyState !== 1) return;
+  socket.send(JSON.stringify({
     common: { app_id: xconfig.appId },
     business: { language: cfg.dir === 'z2e' ? 'zh_cn' : 'en_us', domain: 'iat', accent: 'mandarin', vad_eos: 5000, dwa: 'wpgs' },
     data: { status, format: 'audio/L16;rate=16000', encoding: 'raw', audio }
@@ -742,7 +757,11 @@ function sendFrame(audio, status) {
 function stopIflytek() {
   if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
   if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-  if (ws && ws.readyState === 1) { try { sendFrame('', 2); } catch(e) {} }
+  if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify({
+    common: { app_id: xconfig.appId },
+    business: { language: cfg.dir === 'z2e' ? 'zh_cn' : 'en_us', domain: 'iat', accent: 'mandarin', vad_eos: 5000, dwa: 'wpgs' },
+    data: { status: 2, format: 'audio/L16;rate=16000', encoding: 'raw', audio: '' }
+  })); } catch(e) {} }
   if (ws) { ws.close(); ws = null; }
   if (processorNode) { processorNode.disconnect(); processorNode.onaudioprocess = null; processorNode = null; }
   if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
