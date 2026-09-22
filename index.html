@@ -204,6 +204,27 @@
   }
   .banner.show { display: block; }
   .banner a { color: var(--blue); }
+
+  /* ---------- insight panel ---------- */
+  .insight-zone { margin-top: 14px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); padding: 14px 16px; display: none; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .insight-zone.show { display: block; }
+  .insight-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .insight-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .2px; }
+  .insight-status { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+  .insight-body { display: flex; flex-direction: column; gap: 10px; }
+  .insight-card { background: var(--card-2); border-radius: 12px; padding: 10px 12px; }
+  .ic-title { font-size: 10.5px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+  .ic-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ic-tag { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: rgba(0,122,255,.1); color: var(--blue); font-weight: 600; }
+  .ic-tag.hot { background: rgba(255,59,48,.1); color: var(--accent); }
+  .ic-products { display: flex; flex-direction: column; gap: 6px; }
+  .ic-product { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255,59,48,.06); cursor: pointer; transition: background .15s; }
+  .ic-product:active { background: rgba(255,59,48,.12); }
+  .ic-product .p-model { font-size: 12px; font-weight: 700; color: var(--accent); flex: none; }
+  .ic-product .p-desc { font-size: 11px; color: var(--text-dim); flex: 1; }
+  .ic-hints { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+  .ic-hint { padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .ic-hint:last-child { border-bottom: none; }
 </style>
 </head>
 <body>
@@ -216,7 +237,10 @@
         <p>对话场景 · 中英互译</p>
       </div>
     </div>
-    <button class="icon-btn" id="openSettings" aria-label="设置">⚙</button>
+    <div style="display:flex;gap:6px;">
+      <button class="icon-btn" onclick="location.href='records.html'" aria-label="客户纪要" title="客户纪要">📝</button>
+      <button class="icon-btn" id="openSettings" aria-label="设置">⚙</button>
+    </div>
   </header>
 
   <div class="banner" id="compatBanner"></div>
@@ -266,6 +290,14 @@
     <div class="text-done" id="textDone"></div>
   </div>
 
+  <div class="insight-zone" id="insightZone">
+    <div class="insight-head">
+      <div class="insight-title">💡 实时洞察</div>
+      <div class="insight-status" id="insightStatus">等待中…</div>
+    </div>
+    <div class="insight-body" id="insightBody"></div>
+  </div>
+
   <div class="session-head">
     <h2>会话记录</h2>
     <button id="clearBtn">清空</button>
@@ -292,7 +324,11 @@
       <option value="native">浏览器内置（iPhone Safari）</option>
     </select>
   </div>
-  <div class="hint">引擎说明：讯飞引擎在 Android / iOS 均可使用，iPhone Safari 仍可用浏览器内置引擎。切换后点击麦克风生效。</div>
+  <div class="field">
+    <label>智能分析 · 大模型 API Key（可选）</label>
+    <input id="llmKey" type="text" placeholder="千帆/文心/讯飞等平台的 API Key（留空则只用本地规则）" autocomplete="off">
+    <div class="hint">实时洞察需要调用大模型分析对话内容。可选：千帆 qianfan、文心 ernie、讯飞 spark 等平台的 API Key。密钥仅保存在本机，不会上传到服务器。</div>
+  </div>
   <button class="btn-primary" id="saveBtn">保存并关闭</button>
 </div>
 
@@ -549,6 +585,7 @@
   /* ================= 公共控制 ================= */
   function startListening() {
     listening = true; lastFinalText = "";
+    if (!currentSession.startTime) startNewSession();
     $("liveZone").classList.add("show");
     $("interimText").textContent = "正在聆听……"; $("interimText").classList.add("placeholder");
     $("transResult").textContent = "…";
@@ -557,6 +594,126 @@
   function stopListening(manual) {
     listening = false; restartFail = 0; startedOnce = false;
     if (cfg.engine === "iflytek") stopIflytek(); else stopNative();
+    // 显示生成纪要按钮
+    if (currentSession.segments.length > 0) showSummaryBtn();
+  }
+
+  /* ================= 纪要生成与保存 ================= */
+  function showSummaryBtn() {
+    if ($("summaryBtn")) return;
+    var btn = document.createElement("button");
+    btn.id = "summaryBtn";
+    btn.className = "btn-primary";
+    btn.style.cssText = "margin-top:12px;";
+    btn.textContent = "📝 生成客户沟通纪要";
+    btn.onclick = generateSummary;
+    $("sessionList").parentNode.insertBefore(btn, $("sessionList").nextSibling);
+  }
+
+  function generateSummary() {
+    var s = currentSession;
+    var duration = Math.round((new Date() - new Date(s.startTime)) / 60000);
+    var html = '<div class="insight-zone show" style="margin-top:16px;">' +
+      '<div class="insight-head"><div class="insight-title">📋 客户沟通纪要</div></div>' +
+      '<div class="insight-body">' +
+      '<div class="insight-card"><div class="ic-title">基本信息</div>' +
+      '<div style="font-size:12px;color:var(--text-2);line-height:1.7;">' +
+      '⏱ 时长：' + duration + ' 分钟<br>' +
+      '📅 时间：' + new Date(s.startTime).toLocaleString("zh-CN") + '<br>' +
+      '🗣 对话轮次：' + s.segments.length + ' 句' +
+      '</div></div>';
+
+    if (sessionSignals.length) {
+      html += '<div class="insight-card"><div class="ic-title">客户信号</div><div class="ic-tags">';
+      for (var i = 0; i < sessionSignals.length; i++) html += '<span class="ic-tag ' + (i < 2 ? 'hot' : '') + '">' + sessionSignals[i] + '</span>';
+      html += '</div></div>';
+    }
+
+    if (sessionProducts.length) {
+      html += '<div class="insight-card"><div class="ic-title">匹配产品</div><div class="ic-products">';
+      for (var i = 0; i < Math.min(sessionProducts.length, 5); i++) {
+        var p = sessionProducts[i];
+        html += '<div class="ic-product"><span class="p-model">' + p.model + '</span><span class="p-desc">' + p.name + ' · ' + (p.sellingPoints.slice(0,2).join(" · ") || "") + '</span></div>';
+      }
+      html += '</div></div>';
+    }
+
+    html += '<div class="insight-card"><div class="ic-title">对话摘要</div>' +
+      '<div style="font-size:11.5px;color:var(--text-2);line-height:1.7;max-height:200px;overflow-y:auto;">';
+    for (var i = s.segments.length - 1; i >= 0; i--) {
+      var seg = s.segments[i];
+      html += '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line);">' +
+        '<span style="color:var(--text-dim);font-size:10px;">' + seg.time + '</span> ' +
+        '<span style="color:var(--blue);font-size:10px;font-weight:600;">' + (seg.dir === "z2e" ? "中" : "英") + '</span><br>' +
+        seg.src + (seg.dst ? '<br><span style="color:var(--text-dim);">→ ' + seg.dst + '</span>' : '') +
+        '</div>';
+    }
+    html += '</div></div>';
+
+    html += '<div class="insight-card"><div class="ic-title">备注</div>' +
+      '<textarea id="customerNote" style="width:100%;min-height:80px;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--card-2);color:var(--text);font-size:13px;outline:none;resize:vertical;" placeholder="填写客户公司名、联系人、展位号、微信、下次跟进计划等..."></textarea>' +
+      '</div>';
+
+    html += '<div style="display:flex;gap:8px;margin-top:4px;">' +
+      '<button class="btn-primary" style="flex:1;" onclick="saveSummary()">💾 保存纪要</button>' +
+      '<button class="btn-primary" style="flex:1;background:var(--text-dim);" onclick="copySummary()">📋 复制文本</button>' +
+      '</div>';
+
+    html += '</div></div>';
+
+    // 插入到页面底部
+    var div = document.createElement("div");
+    div.innerHTML = html;
+    $("app").appendChild(div);
+    // 移除生成按钮
+    var btn = $("summaryBtn");
+    if (btn) btn.remove();
+  }
+
+  function saveSummary() {
+    var note = $("customerNote") ? $("customerNote").value.trim() : "";
+    var record = {
+      id: Date.now(),
+      startTime: currentSession.startTime,
+      endTime: new Date().toISOString(),
+      segments: currentSession.segments,
+      signals: sessionSignals,
+      products: sessionProducts,
+      note: note,
+      customerInfo: currentSession.customerInfo || {}
+    };
+    try {
+      var records = JSON.parse(localStorage.getItem("e2c_records") || "[]");
+      records.unshift(record);
+      localStorage.setItem("e2c_records", JSON.stringify(records));
+      alert("✅ 纪要已保存！共 " + records.length + " 条历史记录。");
+    } catch(e) {
+      alert("保存失败：" + e.message);
+    }
+  }
+
+  function copySummary() {
+    var s = currentSession;
+    var text = "📋 客户沟通纪要\n━━━━━━━━━━━━━━\n";
+    text += "时间：" + new Date(s.startTime).toLocaleString("zh-CN") + "\n";
+    text += "轮次：" + s.segments.length + " 句\n\n";
+    if (sessionSignals.length) text += "【客户信号】\n" + sessionSignals.join(", ") + "\n\n";
+    if (sessionProducts.length) {
+      text += "【匹配产品】\n";
+      for (var i = 0; i < sessionProducts.length; i++) {
+        text += "- " + sessionProducts[i].model + "：" + sessionProducts[i].name + "\n";
+      }
+      text += "\n";
+    }
+    text += "【对话摘要】\n";
+    for (var i = s.segments.length - 1; i >= 0; i--) {
+      text += "[" + s.segments[i].time + "] " + s.segments[i].src + "\n";
+      if (s.segments[i].dst) text += "  → " + s.segments[i].dst + "\n";
+    }
+    var note = $("customerNote") ? $("customerNote").value.trim() : "";
+    if (note) text += "\n【备注】\n" + note;
+    copyText(text, null);
+    alert("📋 已复制到剪贴板");
   }
 
   /* ================= 翻译 ================= */
@@ -593,6 +750,13 @@
     btn.classList.toggle("active", on);
     label.textContent = on ? "停止听译" : "开始听译";
   }
+  var currentSession = { startTime: null, segments: [], customerInfo: {} };
+  function startNewSession() {
+    currentSession = { startTime: new Date().toISOString(), segments: [], customerInfo: {} };
+    resetInsight();
+    $("sessionList").innerHTML = '<div class="empty"><div class="big">🎙️</div>还没有记录，点麦克风开始吧</div>';
+  }
+
   function addSegment(src, dst, d, errMsg) {
     var list = $("sessionList");
     if (list.children.length === 1 && list.children[0].classList.contains("empty")) list.innerHTML = "";
@@ -612,6 +776,10 @@
     seg.appendChild(copy);
     list.prepend(seg);
     while (list.children.length > 40) list.removeChild(list.lastChild);
+    // 记录到当前会话
+    currentSession.segments.unshift({ time: ts, src: src, dst: dst || "", dir: cfg.dir });
+    // 触发实时洞察
+    updateInsight(src);
   }
   function copyText(text, btn) {
     function done(ok) {
@@ -624,6 +792,191 @@
   }
   function legacyCopy(text, done) {
     try { var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); var ok = document.execCommand("copy"); document.body.removeChild(ta); done(ok); } catch (e) { done(false); }
+  }
+
+  /* ================= GXYKIT 产品知识库 ================= */
+  var GXYKIT_PRODUCTS = [
+    { model: "GC01", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","3 USB","LED"], sellingPoints: ["120W","3 USB Ports","LED Lights"] },
+    { model: "GC05", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
+    { model: "GC13", name: "多设备扩展车充", category: "Car Charger", keywords: ["PD","45W","retractable"], sellingPoints: ["PD Fast Charge","Retractable"] },
+    { model: "GC15", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable","LED"], sellingPoints: ["65W","Retractable","LED Lights"] },
+    { model: "GC16", name: "Car Charger", category: "Car Charger", keywords: ["120W","retractable"], sellingPoints: ["120W","Retractable"] },
+    { model: "GC18", name: "Car Charger", category: "Car Charger", keywords: ["120W","retractable","LED"], sellingPoints: ["120W","Retractable","LED Lights"] },
+    { model: "GC21", name: "Car Charger", category: "Car Charger", keywords: ["83W","retractable"], sellingPoints: ["83W","Retractable"] },
+    { model: "GC21-Z", name: "Car Charger", category: "Car Charger", keywords: ["BT 5.4","83W","retractable"], sellingPoints: ["BT 5.4","83W","Retractable"] },
+    { model: "GC24", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable"], sellingPoints: ["65W","Retractable"] },
+    { model: "GC24-Boost", name: "Car Charger", category: "Car Charger", keywords: ["PD","boost","retractable"], sellingPoints: ["PD Fast Charge","Retractable"] },
+    { model: "GC25", name: "伸缩线车充", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GC03", name: "Car Charger", category: "Car Charger", keywords: ["PD","LED"], sellingPoints: ["PD Fast Charge","LED Lights"] },
+    { model: "GC03C", name: "Car Charger", category: "Car Charger", keywords: ["54W","3 USB","LED"], sellingPoints: ["54W","3 USB Ports","LED Lights"] },
+    { model: "GC03S", name: "Car Charger", category: "Car Charger", keywords: ["PD","LED"], sellingPoints: ["PD Fast Charge","LED Lights"] },
+    { model: "GC06", name: "Car Charger", category: "Car Charger", keywords: ["120W","3 USB"], sellingPoints: ["120W","3 USB Ports"] },
+    { model: "GC06-35W", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED","35W"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
+    { model: "GC06-PD65W", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED","65W"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
+    { model: "GC11", name: "Car Charger", category: "Car Charger", keywords: ["car charger"], sellingPoints: [] },
+    { model: "GC11S", name: "Car Charger", category: "Car Charger", keywords: ["120W","3 USB","LED"], sellingPoints: ["120W","3 USB Ports","LED Lights"] },
+    { model: "GC11-Pro", name: "Car Charger", category: "Car Charger", keywords: ["120W","dual USB"], sellingPoints: ["120W","Dual USB"] },
+    { model: "GC07", name: "Car Charger", category: "Car Charger", keywords: ["61W","dual USB"], sellingPoints: ["61W","Dual USB"] },
+    { model: "ZNB02", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","dual USB"], sellingPoints: ["120W","Dual USB"] },
+    { model: "ZNB02-LED", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","dual USB","LED"], sellingPoints: ["120W","Dual USB","LED Lights"] },
+    { model: "ZNB03S", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","dual USB"], sellingPoints: ["120W","Dual USB"] },
+    { model: "GC08 PD+L", name: "Retractable Cable Car Charger", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GC08 PD+C", name: "Retractable Cable Car Charger", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GC08 2PD", name: "Retractable Cable Car Charger", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GC08-FM(PD+L)", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD","FM","retractable","LED"], sellingPoints: ["BT 5.4","PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GC08-FM(PD+C)", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD","FM","retractable","LED"], sellingPoints: ["BT 5.4","PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GC08-FM(2PD)", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD","FM","retractable","LED"], sellingPoints: ["BT 5.4","PD Fast Charge","Retractable","LED Lights"] },
+    { model: "GZ11", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","retractable","LED"], sellingPoints: ["BT 5.3","Retractable","LED Lights"] },
+    { model: "GZ11-C", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable","LED"], sellingPoints: ["65W","Retractable","LED Lights"] },
+    { model: "GZ07", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","FM","charger","display","LED"], sellingPoints: ["BT 5.3"] },
+    { model: "GZ08-DualPD35W", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","PD","35W","FM","LED"], sellingPoints: ["BT 5.3","PD Fast Charge","LED Lights"] },
+    { model: "GZ01", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
+    { model: "GZ03", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB"], sellingPoints: ["BT 5.3","Dual USB"] },
+    { model: "GZ03-PD", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD"], sellingPoints: ["BT 5.4","PD Fast Charge"] },
+    { model: "G13", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","charger","dual USB"], sellingPoints: ["BT 5.3","Charger 5V/2.4","Dual USB"] },
+    { model: "G15", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","charger","dual USB"], sellingPoints: ["BT 5.3","Charger 5V/3.5","Dual USB"] },
+    { model: "G24", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","3 USB","screen"], sellingPoints: ["BT 5.3","QC3.0","3 USB Ports","2.0 in Screen"] },
+    { model: "G32", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","charger"], sellingPoints: ["BT 5.4","Charger 5V/3.1"] },
+    { model: "G32-PD", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD"], sellingPoints: ["BT 5.4","PD Fast Charge"] },
+    { model: "G32-QC", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","QC3.0"], sellingPoints: ["BT 5.4","QC3.0"] },
+    { model: "G32-Uni", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","charger","dual USB"], sellingPoints: ["BT 5.3","Charger 5V/3.1","Dual USB"] },
+    { model: "G45", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","3 USB","screen"], sellingPoints: ["BT 5.3","QC3.0","3 USB Ports","0.96 in Screen"] },
+    { model: "G45-C", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","QC3.0","3 USB","screen"], sellingPoints: ["BT 5.4","QC3.0","3 USB Ports","0.96 in Screen"] },
+    { model: "G47", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","LED"], sellingPoints: ["BT 5.4","LED Lights"] },
+    { model: "G47-Knob", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","LED","knob"], sellingPoints: ["BT 5.4","LED Lights"] },
+    { model: "G47-Uni", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
+    { model: "G52", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","USB-C"], sellingPoints: ["BT 5.3","QC3.0","USB-C"] },
+    { model: "G57", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","USB-C"], sellingPoints: ["BT 5.3","QC3.0","USB-C"] },
+    { model: "G61", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","LED"], sellingPoints: ["BT 5.3","QC3.0","LED Lights"] },
+    { model: "G67", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
+    { model: "G68", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
+    { model: "M7", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","3 USB"], sellingPoints: ["BT 5.3","3 USB Ports"] },
+    { model: "AP06", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB"], sellingPoints: ["BT 5.3","Dual USB"] },
+    { model: "G21", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.3","3 USB","FM"], sellingPoints: ["BT 5.3","3 USB Ports"] },
+    { model: "G63", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.3","FM"], sellingPoints: ["BT 5.3"] },
+    { model: "G63-Remote", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.0","PD","FM","remote"], sellingPoints: ["BT 5.0","PD Fast Charge"] },
+    { model: "GR01", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4","LED"], sellingPoints: ["BT 5.4","LED Lights"] },
+    { model: "GR03", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
+    { model: "GR05", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.3"], sellingPoints: ["BT 5.3"] },
+    { model: "GR05-Wired-JL", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4","USB-C"], sellingPoints: ["BT 5.4","USB-C"] },
+    { model: "GR07", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4","LED"], sellingPoints: ["BT 5.4","LED Lights"] },
+    { model: "GR08", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 6.0"], sellingPoints: ["BT 6.0"] },
+    { model: "GR11", name: "BT Audio RX/TX 2-in-1", category: "Bluetooth TX/RX", keywords: ["BT 5.4","USB-C"], sellingPoints: ["BT 5.4","USB-C"] },
+    { model: "GR13", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
+    { model: "GR15", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
+    { model: "GR16", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
+    { model: "GR18", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
+    { model: "GR31", name: "蓝牙接收器", category: "Bluetooth RX", keywords: ["BT 5.3"], sellingPoints: ["BT 5.3"] }
+  ];
+
+  /* ================= 本地关键词提取 ================= */
+  var INSIGHT_SIGNALS = {
+    price: { words: ["price","cost","expensive","cheap","budget"," cheaper","贵","便宜","价格","成本","多少钱","budget","报价","quote"], label: "价格敏感" },
+    delivery: { words: ["delivery","lead time","urgent","stock","现货","交期","库存","多久","急","urgent","leadtime","delivery time"], label: "交期关注" },
+    sample: { words: ["sample","test","trial","pilot","送样","样品","测试","试用","试产","pilot run"], label: "需送样" },
+    volume: { words: ["volume","quantity","MOQ","bulk","mass","批量","数量","起订量","1K","5K","10K","大量"], label: "批量需求" },
+    quality: { words: ["quality","reliability","certification","CE","FCC","RoHS","质量","可靠性","认证","品质","fail","defect"], label: "质量关注" },
+    competitor: { words: ["competitor","rival","xxx","brand","compare","竞品","对手","品牌","xx牌","对比","替代"], label: "竞品对比" },
+    replacement: { words: ["replacement","alternative","substitute","替代","替换","代替","换料","pin-to-pin"], label: "替代需求" }
+  };
+
+  var sessionKeywords = [], sessionProducts = [], sessionSignals = [];
+  function resetInsight() {
+    sessionKeywords = []; sessionProducts = []; sessionSignals = [];
+    $("insightZone").classList.remove("show");
+    $("insightBody").innerHTML = "";
+    $("insightStatus").textContent = "等待中…";
+  }
+
+  function extractKeywords(text) {
+    var lower = text.toLowerCase();
+    var found = [];
+    for (var key in INSIGHT_SIGNALS) {
+      var sig = INSIGHT_SIGNALS[key];
+      for (var i = 0; i < sig.words.length; i++) {
+        if (lower.indexOf(sig.words[i].toLowerCase()) !== -1) { found.push(sig.label); break; }
+      }
+    }
+    return found;
+  }
+
+  function matchProducts(text) {
+    var lower = text.toLowerCase();
+    var scores = [];
+    for (var i = 0; i < GXYKIT_PRODUCTS.length; i++) {
+      var p = GXYKIT_PRODUCTS[i];
+      var score = 0;
+      for (var j = 0; j < p.keywords.length; j++) {
+        if (lower.indexOf(p.keywords[j].toLowerCase()) !== -1) score++;
+      }
+      if (score > 0) scores.push({ model: p.model, name: p.name, score: score, sellingPoints: p.sellingPoints });
+    }
+    scores.sort(function (a, b) { return b.score - a.score; });
+    return scores.slice(0, 3);
+  }
+
+  function updateInsight(text) {
+    if (!text) return;
+    var kws = extractKeywords(text);
+    for (var i = 0; i < kws.length; i++) { if (sessionSignals.indexOf(kws[i]) === -1) sessionSignals.push(kws[i]); }
+    var prods = matchProducts(text);
+    for (var i = 0; i < prods.length; i++) {
+      var found = false;
+      for (var j = 0; j < sessionProducts.length; j++) { if (sessionProducts[j].model === prods[i].model) { found = true; break; } }
+      if (!found) sessionProducts.push(prods[i]);
+    }
+    if (sessionSignals.length || sessionProducts.length) {
+      $("insightZone").classList.add("show");
+      $("insightStatus").textContent = "已更新";
+    }
+    renderInsight();
+    // 如果有 API Key，送大模型做深度分析
+    if (cfg.llmKey) callLLMInsight(text);
+  }
+
+  function renderInsight() {
+    var html = "";
+    if (sessionSignals.length) {
+      html += '<div class="insight-card"><div class="ic-title">客户信号</div><div class="ic-tags">';
+      for (var i = 0; i < sessionSignals.length; i++) {
+        html += '<span class="ic-tag ' + (i < 2 ? 'hot' : '') + '">' + sessionSignals[i] + '</span>';
+      }
+      html += '</div></div>';
+    }
+    if (sessionProducts.length) {
+      html += '<div class="insight-card"><div class="ic-title">推荐产品</div><div class="ic-products">';
+      for (var i = 0; i < Math.min(sessionProducts.length, 3); i++) {
+        var p = sessionProducts[i];
+        html += '<div class="ic-product" onclick="alert(\'型号: ' + p.model + '\\n卖点: ' + (p.sellingPoints.join(", ") || "暂无") + '\')">' +
+          '<span class="p-model">' + p.model + '</span><span class="p-desc">' + p.name + ' · ' + (p.sellingPoints.slice(0,2).join(" · ") || "") + '</span></div>';
+      }
+      html += '</div></div>';
+    }
+    $("insightBody").innerHTML = html || '<div style="font-size:12px;color:var(--text-dim);">暂未识别到明确信号，继续对话即可自动提取</div>';
+  }
+
+  /* ================= 大模型深度分析（可选） ================= */
+  var llmQueue = [], llmProcessing = false;
+  function callLLMInsight(text) {
+    llmQueue.push(text);
+    if (!llmProcessing) processLLMQueue();
+  }
+  function processLLMQueue() {
+    if (!llmQueue.length || !cfg.llmKey) { llmProcessing = false; return; }
+    llmProcessing = true;
+    var text = llmQueue.join("\n"); llmQueue = [];
+    // 使用千帆/文心免费额度（简化调用，实际需要根据具体平台调整）
+    var prompt = "你是电子元器件销售助手。根据以下客户对话内容，提取：1)客户核心诉求 2)关注的产品特性 3)价格敏感度 4)下一步跟进建议。对话：" + text;
+    fetch("https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions?access_token=" + cfg.llmKey, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: prompt }], temperature: 0.7 })
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (j.result) {
+        var html = '<div class="insight-card"><div class="ic-title">智能分析</div><div class="ic-hints">' + j.result.replace(/\n/g, "<br>") + '</div></div>';
+        $("insightBody").insertAdjacentHTML("beforeend", html);
+      }
+      llmProcessing = false; processLLMQueue();
+    }).catch(function(){ llmProcessing = false; });
   }
 
   /* ================= 方向切换 ================= */
@@ -645,8 +998,9 @@
     $("setCardZ2E").classList.toggle("sel", cfg.dir === "z2e");
     $("setCardE2Z").classList.toggle("sel", cfg.dir === "e2z");
     $("engineSel").value = cfg.engine;
+    $("llmKey").value = cfg.llmKey || "";
   }
-  function saveAndClose() { cfg.engine = $("engineSel").value; saveCfg(); closeSheet(); }
+  function saveAndClose() { cfg.engine = $("engineSel").value; cfg.llmKey = $("llmKey").value.trim(); saveCfg(); closeSheet(); }
 
   /* ================= 存储 ================= */
   function saveCfg() { try { localStorage.setItem("e2c_cfg", JSON.stringify(cfg)); } catch(e){} }
