@@ -640,10 +640,13 @@ function startIflytek() {
         .then(stream => {
           audioStream = stream;
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtx.resume();
           const sourceRate = audioCtx.sampleRate;
           const ratio = 16000 / sourceRate;
           sourceNode = audioCtx.createMediaStreamSource(stream);
           processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+          const muteGain = audioCtx.createGain();
+          muteGain.gain.value = 0;
           processorNode.onaudioprocess = e => {
             if (!isRecording) return;
             const input = e.inputBuffer.getChannelData(0);
@@ -677,6 +680,8 @@ function startIflytek() {
             }
           };
           sourceNode.connect(processorNode);
+          processorNode.connect(muteGain);
+          muteGain.connect(audioCtx.destination);
           sendFrame('', 0);
           frameInterval = setInterval(() => {
             if (!isRecording || !ws || ws.readyState !== 1) return;
