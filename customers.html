@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>E2C · 客户档案</title>
+<meta name="theme-color" content="#1D1D1F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root {
+    --bg: #000000;
+    --surface: #1C1C1E;
+    --surface-2: #2C2C2E;
+    --text: #FFFFFF;
+    --text-2: #8E8E93;
+    --text-3: #636366;
+    --accent: #FF3B30;
+    --accent-soft: rgba(255,59,48,0.15);
+    --blue: #0A84FF;
+    --green: #30D158;
+    --yellow: #FFD60A;
+    --line: rgba(255,255,255,0.08);
+    --radius: 16px;
+    --radius-sm: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 480px; margin: 0 auto; width: 100%; padding: var(--safe-top) 0 0; position: relative; min-height: 100vh; }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; position: sticky; top: 0; z-index: 10;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .header .count { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: var(--accent); color: #fff; font-size: 20px; font-weight: 700;
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .icon-btn:active { transform: scale(0.92); }
+
+  /* Search */
+  .search-box {
+    margin: 12px 20px 8px; display: flex; gap: 8px;
+    align-items: center; background: var(--surface);
+    border-radius: var(--radius-sm); padding: 0 14px; height: 44px;
+    border: 1.5px solid transparent;
+  }
+  .search-box:focus-within { border-color: var(--accent); }
+  .search-box input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-size: 15px;
+  }
+  .search-box input::placeholder { color: var(--text-3); }
+  .search-box .icon { color: var(--text-3); font-size: 15px; }
+
+  /* Filter chips */
+  .filter-row {
+    display: flex; gap: 8px; overflow-x: auto; padding: 8px 20px 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; padding: 7px 14px; border-radius: 20px;
+    background: var(--surface); color: var(--text-2);
+    font-size: 13px; font-weight: 600; border: 1.5px solid transparent;
+    cursor: pointer; white-space: nowrap;
+  }
+  .chip.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+  /* Customer cards */
+  .list { padding: 12px 20px 100px; display: flex; flex-direction: column; gap: 10px; }
+  .customer-card {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 16px; border: 1.5px solid var(--line); cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .customer-card:active { border-color: var(--accent); transform: scale(0.98); }
+  .card-top { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 14px; flex: none;
+    display: grid; place-items: center; font-size: 18px; font-weight: 800; color: #fff;
+  }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-size: 16px; font-weight: 700; }
+  .card-contact { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .card-meta { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .meta-item { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 4px; }
+  .meta-item.hot { color: var(--accent); }
+  .meta-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .card-tags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px; font-weight: 600; padding: 3px 9px;
+    border-radius: 12px; background: var(--surface-2); color: var(--text-2);
+  }
+  .tag.product { background: rgba(10,132,255,0.15); color: var(--blue); }
+  .tag.lead { background: var(--accent-soft); color: var(--accent); }
+
+  .empty-state {
+    text-align: center; padding: 60px 40px; color: var(--text-3);
+  }
+  .empty-state .big { font-size: 44px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; margin-bottom: 20px; }
+
+  /* Tab Bar */
+  .tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 8px 0 calc(8px + var(--safe-bottom));
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line); z-index: 100;
+    max-width: 480px; margin: 0 auto;
+  }
+  .tab-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; padding: 4px 16px; cursor: pointer;
+    color: var(--text-3); text-decoration: none;
+    transition: color 0.2s; border: none; background: none;
+  }
+  .tab-item.active { color: var(--accent); }
+  .tab-item .icon { font-size: 22px; }
+  .tab-item .label { font-size: 10px; font-weight: 600; }
+
+  /* Modal */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    z-index: 200; backdrop-filter: blur(4px);
+  }
+  .modal-mask.show { opacity: 1; pointer-events: auto; }
+  .modal-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: var(--surface); border-radius: 24px 24px 0 0;
+    padding: 20px 20px calc(20px + var(--safe-bottom));
+    transform: translateY(105%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.25, 1);
+    z-index: 210; max-width: 480px; margin: 0 auto;
+  }
+  .modal-sheet.show { transform: translateY(0); }
+  .modal-sheet h3 { font-size: 18px; margin-bottom: 16px; }
+  .modal-sheet .input-group { margin-bottom: 14px; }
+  .modal-sheet label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; font-weight: 600; }
+  .modal-sheet input, .modal-sheet textarea, .modal-sheet select {
+    width: 100%; padding: 12px 14px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: var(--surface-2);
+    color: var(--text); font-size: 15px; outline: none;
+    font-family: inherit;
+  }
+  .modal-sheet input:focus, .modal-sheet textarea:focus { border-color: var(--accent); }
+  .modal-sheet textarea { min-height: 80px; resize: vertical; }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn-row button { flex: 1; padding: 14px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-row .cancel { background: var(--surface-2); color: var(--text); }
+  .btn-row .confirm { background: var(--accent); color: #fff; }
+
+  .toast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--surface-2); color: var(--text); padding: 12px 24px;
+    border-radius: 12px; font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    z-index: 300; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div>
+      <h1>客户档案</h1>
+      <div class="count" id="countText">共 0 位客户</div>
+    </div>
+    <button class="icon-btn" onclick="showCreateModal()">+</button>
+  </div>
+
+  <div class="search-box">
+    <span class="icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="搜索公司名、联系人..." oninput="renderList()">
+  </div>
+
+  <div class="filter-row" id="filterRow">
+    <button class="chip active" data-filter="all" onclick="setFilter('all')">全部</button>
+    <button class="chip" data-filter="lead" onclick="setFilter('lead')">🔥 意向强</button>
+    <button class="chip" data-filter="contacted" onclick="setFilter('contacted')">📞 已沟通</button>
+    <button class="chip" data-filter="new" onclick="setFilter('new')">🆕 今天新增</button>
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="big">👥</div>
+    <p>还没有客户档案<br>点击右上角 <b style="color:var(--text)">＋</b> 创建第一个客户</p>
+  </div>
+</div>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <a class="tab-item" href="index.html">
+    <span class="icon">🎙️</span>
+    <span class="label">翻译</span>
+  </a>
+  <a class="tab-item active" href="customers.html">
+    <span class="icon">👥</span>
+    <span class="label">客户</span>
+  </a>
+</nav>
+
+<!-- Create Modal -->
+<div class="modal-mask" id="createMask" onclick="hideCreateModal()"></div>
+<div class="modal-sheet" id="createSheet">
+  <h3>新建客户</h3>
+  <div class="input-group">
+    <label>公司名 / 客户名称 *</label>
+    <input type="text" id="newName" placeholder="例：ABC Electronics Co.">
+  </div>
+  <div class="input-group">
+    <label>联系人</label>
+    <input type="text" id="newContact" placeholder="例：John Smith (采购经理)">
+  </div>
+  <div class="input-group">
+    <label>备注</label>
+    <textarea id="newNotes" placeholder="拜访信息、背景、感兴趣的产品..."></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="cancel" onclick="hideCreateModal()">取消</button>
+    <button class="confirm" onclick="createCustomer()">创建</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DB = {
+  getCustomers() {
+    try { return JSON.parse(localStorage.getItem('e2c_customers') || '[]'); }
+    catch(e) { return []; }
+  },
+  saveCustomers(list) {
+    localStorage.setItem('e2c_customers', JSON.stringify(list));
+  },
+  getConversations() {
+    try { return JSON.parse(localStorage.getItem('e2c_conversations') || '[]'); }
+    catch(e) { return []; }
+  },
+  generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
+};
+
+let filter = 'all';
+
+const AVATAR_COLORS = ['#FF3B30', '#FF9500', '#FFD60A', '#30D158', '#0A84FF', '#5E5CE6', '#FF375F', '#64D2FF'];
+
+function init() {
+  renderList();
+}
+
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  renderList();
+}
+
+function getCustomerStats(customer) {
+  const convs = DB.getConversations().filter(c => c.customerId === customer.id);
+  const segs = convs.reduce((acc, c) => acc + (c.segments ? c.segments.length : 0), 0);
+  const products = new Set();
+  convs.forEach(c => (c.products || []).forEach(p => products.add(p.model)));
+  const lastTime = convs.length ? convs[convs.length - 1].endTime || convs[convs.length - 1].startTime : null;
+  const isToday = lastTime && new Date(lastTime).toDateString() === new Date().toDateString();
+  return { count: convs.length, segs, products: [...products], lastTime, isToday };
+}
+
+function renderList() {
+  const list = document.getElementById('list');
+  const empty = document.getElementById('emptyState');
+  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+  let customers = DB.getCustomers();
+
+  // Filter
+  if (filter === 'lead') {
+    const leadIds = new Set(DB.getConversations().filter(c => (c.signals || []).length >= 2).map(c => c.customerId));
+    customers = customers.filter(c => leadIds.has(c.id));
+  } else if (filter === 'contacted') {
+    const convIds = new Set(DB.getConversations().map(c => c.customerId));
+    customers = customers.filter(c => convIds.has(c.id));
+  } else if (filter === 'new') {
+    customers = customers.filter(c => new Date(c.createdAt).toDateString() === new Date().toDateString());
+  }
+
+  // Search
+  if (search) {
+    customers = customers.filter(c =>
+      (c.name || '').toLowerCase().includes(search) ||
+      (c.contact || '').toLowerCase().includes(search) ||
+      (c.notes || '').toLowerCase().includes(search)
+    );
+  }
+
+  document.getElementById('countText').textContent = `共 ${customers.length} 位客户`;
+
+  if (!customers.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = customers.map((c, idx) => {
+    const stats = getCustomerStats(c);
+    const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+    const initials = (c.name || '?').charAt(0).toUpperCase();
+    const lead = stats.count > 0 && (() => {
+      const convs = DB.getConversations().filter(cc => cc.customerId === c.id);
+      return convs.some(cc => (cc.signals || []).length >= 2);
+    })();
+    return `
+      <div class="customer-card" onclick="openCustomer('${c.id}')">
+        <div class="card-top">
+          <div class="avatar" style="background:${color}">${initials}</div>
+          <div class="card-info">
+            <div class="card-name">${escapeHtml(c.name)}</div>
+            <div class="card-contact">${c.contact ? escapeHtml(c.contact) : '未填联系人'}</div>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="meta-item ${stats.isToday ? 'hot' : ''}">💬 ${stats.count} 次对话</span>
+          <span class="meta-item">💬 ${stats.segs} 条</span>
+          ${stats.lastTime ? `<span class="meta-item">${formatTime(stats.lastTime)}</span>` : ''}
+        </div>
+        ${stats.products.length || lead ? `
+        <div class="card-tags">
+          ${stats.products.slice(0, 3).map(p => `<span class="tag product">${p}</span>`).join('')}
+          ${lead ? '<span class="tag lead">意向强</span>' : ''}
+        </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function openCustomer(id) {
+  location.href = 'customer.html?id=' + id;
+}
+
+function showCreateModal() {
+  document.getElementById('createMask').classList.add('show');
+  document.getElementById('createSheet').classList.add('show');
+  setTimeout(() => document.getElementById('newName').focus(), 350);
+}
+
+function hideCreateModal() {
+  document.getElementById('createMask').classList.remove('show');
+  document.getElementById('createSheet').classList.remove('show');
+}
+
+function createCustomer() {
+  const name = document.getElementById('newName').value.trim();
+  if (!name) { showToast('请输入公司名或客户名称'); return; }
+  const customer = {
+    id: DB.generateId(),
+    name,
+    contact: document.getElementById('newContact').value.trim(),
+    notes: document.getElementById('newNotes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  const customers = DB.getCustomers();
+  customers.unshift(customer);
+  DB.saveCustomers(customers);
+  hideCreateModal();
+  document.getElementById('newName').value = '';
+  document.getElementById('newContact').value = '';
+  document.getElementById('newNotes').value = '';
+  renderList();
+  showToast('客户已创建');
+  setTimeout(() => openCustomer(customer.id), 600);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatTime(iso) {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return '今天 ' + d.toTimeString().slice(0, 5);
+    return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+  } catch(e) { return ''; }
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+init();
+</script>
+</body>
+</html>

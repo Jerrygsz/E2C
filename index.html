@@ -3,1082 +3,910 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>实时听译 · 中英对话翻译</title>
-<meta name="description" content="用手机麦克风实时听取对话，自动识别并中英互译，境内网络可用。">
-<meta name="theme-color" content="#F5F5F7">
+<title>E2C · 实时翻译</title>
+<meta name="theme-color" content="#1D1D1F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="实时听译">
-<link rel="icon" type="image/png" id="siteIcon">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root {
-    --bg: #F5F5F7;
-    --card: #FFFFFF;
-    --card-2: #F2F2F7;
-    --line: rgba(0,0,0,.06);
-    --text: #1D1D1F;
-    --text-2: #3C3C43;
-    --text-dim: #8E8E93;
+    --bg: #000000;
+    --surface: #1C1C1E;
+    --surface-2: #2C2C2E;
+    --text: #FFFFFF;
+    --text-2: #8E8E93;
+    --text-3: #636366;
     --accent: #FF3B30;
-    --accent-2: #FF6B61;
-    --accent-dark: #D62921;
-    --good: #34C759;
-    --bad: #FF3B30;
-    --warn: #FF9500;
-    --blue: #007AFF;
-    --radius: 18px;
-    --radius-lg: 22px;
-    --safe-b: env(safe-area-inset-bottom, 0px);
+    --accent-soft: rgba(255,59,48,0.15);
+    --blue: #0A84FF;
+    --green: #30D158;
+    --yellow: #FFD60A;
+    --line: rgba(255,255,255,0.08);
+    --radius: 16px;
+    --radius-sm: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; padding: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-    line-height: 1.55;
-    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column;
   }
-  .app { max-width: 600px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(var(--safe-b) + 28px); }
+  .app { flex: 1; max-width: 480px; margin: 0 auto; width: 100%; padding: var(--safe-top) 0 0; position: relative; }
 
-  /* ---------- header ---------- */
-  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .logo {
-    width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
-    background: var(--accent);
-    font-size: 20px; font-weight: 700; color: #fff; box-shadow: 0 2px 12px rgba(255,59,48,.25);
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; position: sticky; top: 0; z-index: 10;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   }
-  .brand h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -.3px; }
-  .brand p { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); font-weight: 500; }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .header .sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
   .icon-btn {
-    width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line);
-    background: var(--card); color: var(--text-2); font-size: 18px; cursor: pointer;
-    display: grid; place-items: center; transition: background .2s;
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: var(--surface); color: var(--text-2); font-size: 18px;
+    display: grid; place-items: center; cursor: pointer;
   }
-  .icon-btn:active { background: var(--card-2); }
+  .icon-btn:active { transform: scale(0.92); }
 
-  /* ---------- status bar ---------- */
-  .status-bar {
-    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
-    background: var(--card); border: 1px solid var(--line);
-    font-size: 13px; color: var(--text-dim); margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  /* Direction Switch */
+  .dir-bar {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px;
+    align-items: center; padding: 0 20px; margin: 8px 0 16px;
   }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); flex: none; transition: background .25s; }
-  .dot.on { background: var(--good); box-shadow: 0 0 6px var(--good); }
-  .dot.err { background: var(--bad); box-shadow: 0 0 6px var(--bad); }
-  #statusText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  /* ---------- direction chooser ---------- */
-  .dir-switch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; margin-bottom: 20px; }
-  .dir-card {
-    border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--card);
-    padding: 14px 10px; text-align: center; cursor: pointer; transition: all .2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  .dir-pill {
+    background: var(--surface); border-radius: var(--radius-sm);
+    padding: 10px 14px; text-align: center; cursor: pointer;
+    border: 1.5px solid transparent; transition: all 0.2s;
   }
-  .dir-card .lg { font-size: 14px; font-weight: 700; }
-  .dir-card .sub { font-size: 11px; color: var(--text-dim); margin-top: 3px; font-weight: 500; }
-  .dir-card.sel { border-color: var(--accent); background: rgba(255,59,48,.06); }
-  .dir-card.sel .lg { color: var(--accent); }
-  .dir-arrow { display: grid; place-items: center; font-size: 16px; color: var(--text-dim); }
+  .dir-pill .lang { font-size: 14px; font-weight: 600; }
+  .dir-pill .sub { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+  .dir-pill.active { border-color: var(--accent); background: var(--accent-soft); }
+  .dir-pill.active .lang { color: var(--accent); }
+  .dir-arrow { color: var(--text-3); font-size: 14px; }
 
-  /* ---------- main mic button ---------- */
-  .mic-zone { display: flex; flex-direction: column; align-items: center; padding: 20px 0 8px; }
+  /* Customer Selector */
+  .customer-bar {
+    margin: 0 20px 16px; padding: 12px 14px;
+    background: var(--surface); border-radius: var(--radius-sm);
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    border: 1.5px solid transparent; transition: border-color 0.2s;
+  }
+  .customer-bar:active { border-color: var(--accent); }
+  .customer-bar .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--accent); display: grid; place-items: center;
+    font-size: 14px; font-weight: 700; color: #fff; flex: none;
+  }
+  .customer-bar .info { flex: 1; min-width: 0; }
+  .customer-bar .name { font-size: 14px; font-weight: 600; }
+  .customer-bar .hint { font-size: 11px; color: var(--text-3); }
+  .customer-bar .arrow { color: var(--text-3); font-size: 12px; }
+
+  /* Mic Zone */
+  .mic-zone {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 20px 0 16px;
+  }
   .mic-btn {
-    position: relative; width: 120px; height: 120px; border-radius: 50%; border: none; cursor: pointer;
-    background: var(--accent);
-    box-shadow: 0 6px 24px rgba(255,59,48,.35), inset 0 -2px 0 rgba(0,0,0,.08);
-    display: grid; place-items: center; transition: transform .15s, background .25s;
+    width: 100px; height: 100px; border-radius: 50%; border: none;
+    background: var(--accent); cursor: pointer;
+    display: grid; place-items: center;
+    box-shadow: 0 0 40px rgba(255,59,48,0.3), 0 4px 20px rgba(255,59,48,0.2);
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: relative;
   }
-  .mic-btn:active { transform: scale(.96); }
-  .mic-btn svg { width: 48px; height: 48px; fill: #fff; transition: fill .25s; }
-  .mic-btn.active { background: var(--accent-dark); }
-  .mic-btn.active::after {
-    content: ""; position: absolute; inset: -8px; border-radius: 50%;
-    border: 2.5px solid rgba(255,59,48,.3); animation: pulse 1.8s ease-out infinite;
+  .mic-btn:active { transform: scale(0.95); }
+  .mic-btn.recording {
+    background: var(--surface); border: 3px solid var(--accent);
+    animation: micPulse 2s ease-in-out infinite;
   }
-  @keyframes pulse { 0% { transform: scale(.98); opacity: 1; } 70% { transform: scale(1.25); opacity: 0; } 100% { opacity: 0; } }
-  .mic-label { margin-top: 14px; font-size: 16px; font-weight: 700; }
-  .mic-sub { margin-top: 4px; font-size: 12.5px; color: var(--text-dim); text-align: center; font-weight: 500; }
+  @keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(255,59,48,0.2); }
+    50% { box-shadow: 0 0 60px rgba(255,59,48,0.5); }
+  }
+  .mic-btn svg { width: 40px; height: 40px; fill: #fff; }
+  .mic-btn.recording svg { fill: var(--accent); }
+  .mic-hint { margin-top: 12px; font-size: 13px; color: var(--text-2); }
+  .mic-hint.recording { color: var(--accent); }
 
-  /* ---------- live zone ---------- */
-  .live-zone { margin-top: 16px; display: none; }
-  .live-zone.show { display: block; }
-  .live-box {
-    border-radius: var(--radius); background: var(--card); border: 1px solid var(--line);
-    padding: 14px 16px; margin-bottom: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  /* Speaker Switch */
+  .speaker-bar {
+    display: flex; gap: 8px; justify-content: center;
+    padding: 10px 20px 4px;
   }
-  .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .4px; margin-bottom: 6px; }
-  .tag .b { color: var(--blue); }
-  #interimText { font-size: 16px; min-height: 26px; color: var(--text); }
-  #interimText.placeholder { color: var(--text-dim); font-size: 14px; }
-  #transResult { font-size: 15.5px; min-height: 26px; color: var(--text-2); }
-  #transResult.loading { color: var(--warn); }
+  .speaker-btn {
+    flex: 1; max-width: 200px; padding: 10px 14px;
+    border-radius: 12px; border: 1.5px solid var(--line);
+    background: var(--surface); color: var(--text-2);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .speaker-btn.active { border-color: var(--blue); background: rgba(10,132,255,0.15); color: var(--blue); }
+  .speaker-btn:disabled { opacity: 0.5; }
 
-  /* ---------- text fallback ---------- */
-  .text-zone { margin-top: 12px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
-  .text-title { font-size: 13px; font-weight: 700; color: var(--text); }
-  .text-tip { font-weight: 400; font-size: 11.5px; color: var(--text-dim); margin-left: 6px; }
-  .text-row { display: flex; gap: 10px; margin-top: 10px; }
-  .text-row input {
-    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
-    background: var(--card-2); color: var(--text); font-size: 15px; outline: none;
-    transition: border-color .2s;
+  /* Real-time Display */
+  .rt-zone { padding: 0 20px; margin-bottom: 16px; }
+  .rt-card {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 12px;
+    border: 1px solid var(--line);
   }
-  .text-row input:focus { border-color: var(--accent); }
-  .text-row button {
-    flex: none; padding: 0 18px; border: none; border-radius: 12px; cursor: pointer;
-    background: var(--accent); color: #fff; font-size: 15px; font-weight: 700;
-    transition: background .2s;
+  .rt-card .label {
+    font-size: 11px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
   }
-  .text-row button:active { background: var(--accent-dark); }
-  .text-done { font-size: 13px; color: var(--text-2); margin-top: 8px; word-break: break-all; display: none; }
-  .text-done.show { display: block; }
+  .rt-card .label .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--text-3);
+  }
+  .rt-card .label .dot.active { background: var(--green); animation: blink 1.5s infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .rt-card .text {
+    font-size: 17px; line-height: 1.5; min-height: 28px;
+    word-break: break-word;
+  }
+  .rt-card .text.placeholder { color: var(--text-3); }
+  .rt-card .trans {
+    font-size: 15px; color: var(--text-2); line-height: 1.5;
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+    min-height: 24px;
+  }
+  .rt-card .trans:empty { display: none; }
 
-  /* ---------- session ---------- */
-  .session-head { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 12px; }
-  .session-head h2 { font-size: 15px; margin: 0; color: var(--text-dim); font-weight: 700; letter-spacing: .3px; }
-  .session-head button {
-    background: none; border: none; color: var(--text-dim); font-size: 12.5px; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+  /* Insight Panel */
+  .insight-zone { padding: 0 20px; margin-bottom: 16px; }
+  .insight-card {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 14px 16px; border: 1px solid var(--line);
   }
-  .session-head button:active { background: rgba(0,0,0,.04); }
-  #sessionList { display: flex; flex-direction: column; gap: 10px; }
-  .seg {
-    border-radius: var(--radius); background: var(--card); border: 1px solid var(--line);
-    padding: 12px 14px; animation: rise .25s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  .insight-card .title {
+    font-size: 12px; font-weight: 700; color: var(--text-3);
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
   }
-  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .seg .meta { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-  .seg .badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-  .badge.zh { background: rgba(0,122,255,.12); color: var(--blue); }
-  .badge.en { background: rgba(255,59,48,.12); color: var(--accent); }
-  .seg .time { font-size: 10.5px; color: var(--text-dim); flex: 1; }
-  .seg .copy { font-size: 11.5px; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 2px 6px; }
-  .seg .src { font-size: 15.5px; color: var(--text); }
-  .seg .dst { font-size: 15.5px; color: var(--text-2); margin-top: 3px; }
-  .seg .dst.failed { color: var(--bad); font-size: 13px; }
-  .empty { text-align: center; color: var(--text-dim); font-size: 13.5px; padding: 36px 0; }
-  .empty .big { font-size: 32px; margin-bottom: 8px; }
+  .insight-card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-size: 12px; font-weight: 600; padding: 5px 10px;
+    border-radius: 20px; background: var(--surface-2); color: var(--text-2);
+  }
+  .tag.hot { background: var(--accent-soft); color: var(--accent); }
+  .tag.product { background: rgba(10,132,255,0.15); color: var(--blue); }
+  .products-list { display: flex; flex-direction: column; gap: 6px; }
+  .product-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 10px;
+    background: rgba(255,59,48,0.08); cursor: pointer;
+  }
+  .product-item:active { background: rgba(255,59,48,0.15); }
+  .product-item .model { font-weight: 700; font-size: 13px; color: var(--accent); }
+  .product-item .desc { font-size: 12px; color: var(--text-2); flex: 1; }
 
-  /* ---------- sheet / settings ---------- */
-  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.3); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
-  .mask.show { opacity: 1; pointer-events: auto; }
-  .sheet {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-    background: var(--card); border-radius: 24px 24px 0 0; border-top: 1px solid var(--line);
-    transform: translateY(105%); transition: transform .28s cubic-bezier(.2,.8,.25,1);
-    padding: 10px 20px calc(var(--safe-b) + 24px);
-    max-width: 600px; margin: 0 auto;
-    box-shadow: 0 -4px 24px rgba(0,0,0,.08);
+  /* Quick Save */
+  .quick-save {
+    padding: 0 20px; margin-bottom: 20px;
   }
-  .sheet.show { transform: none; }
-  .grab { width: 40px; height: 4px; border-radius: 4px; background: rgba(0,0,0,.15); margin: 6px auto 14px; }
-  .sheet h3 { font-size: 17px; margin: 0 0 14px; font-weight: 700; }
-  .field { margin-bottom: 18px; }
-  .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
-  .field input, .field select {
-    width: 100%; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line);
-    background: var(--card-2); color: var(--text); font-size: 15px; outline: none;
+  .save-btn {
+    width: 100%; padding: 14px; border: none; border-radius: var(--radius-sm);
+    background: var(--surface-2); color: var(--text); font-size: 15px;
+    font-weight: 600; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.2s;
   }
-  .field input:focus { border-color: var(--blue); }
-  .hint { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-top: 6px; }
-  .btn-primary {
-    width: 100%; padding: 14px; border: none; border-radius: 14px; cursor: pointer;
-    background: var(--accent); color: #fff; font-size: 16px; font-weight: 700;
-    margin-top: 6px; transition: background .2s;
-  }
-  .btn-primary:active { background: var(--accent-dark); }
-  .note { font-size: 12px; color: var(--text-dim); margin-top: 12px; line-height: 1.6; }
-  .note b { color: var(--warn); }
+  .save-btn:active { background: var(--surface); }
+  .save-btn.primary { background: var(--accent); color: #fff; }
+  .save-btn.primary:active { opacity: 0.9; }
 
-  /* ---------- banner ---------- */
-  .banner {
-    display: none; border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.7;
-    border: 1px solid rgba(255,149,0,.25); background: rgba(255,149,0,.06); color: #D96C00; margin-bottom: 14px;
+  /* Tab Bar */
+  .tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 8px 0 calc(8px + var(--safe-bottom));
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line); z-index: 100;
+    max-width: 480px; margin: 0 auto;
   }
-  .banner.show { display: block; }
-  .banner a { color: var(--blue); }
+  .tab-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; padding: 4px 16px; cursor: pointer;
+    color: var(--text-3); text-decoration: none;
+    transition: color 0.2s; border: none; background: none;
+  }
+  .tab-item.active { color: var(--accent); }
+  .tab-item .icon { font-size: 22px; }
+  .tab-item .label { font-size: 10px; font-weight: 600; }
 
-  /* ---------- insight panel ---------- */
-  .insight-zone { margin-top: 14px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); padding: 14px 16px; display: none; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
-  .insight-zone.show { display: block; }
-  .insight-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .insight-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .2px; }
-  .insight-status { font-size: 11px; color: var(--text-dim); font-weight: 500; }
-  .insight-body { display: flex; flex-direction: column; gap: 10px; }
-  .insight-card { background: var(--card-2); border-radius: 12px; padding: 10px 12px; }
-  .ic-title { font-size: 10.5px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
-  .ic-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .ic-tag { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: rgba(0,122,255,.1); color: var(--blue); font-weight: 600; }
-  .ic-tag.hot { background: rgba(255,59,48,.1); color: var(--accent); }
-  .ic-products { display: flex; flex-direction: column; gap: 6px; }
-  .ic-product { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255,59,48,.06); cursor: pointer; transition: background .15s; }
-  .ic-product:active { background: rgba(255,59,48,.12); }
-  .ic-product .p-model { font-size: 12px; font-weight: 700; color: var(--accent); flex: none; }
-  .ic-product .p-desc { font-size: 11px; color: var(--text-dim); flex: 1; }
-  .ic-hints { font-size: 12px; color: var(--text-2); line-height: 1.6; }
-  .ic-hint { padding: 3px 0; border-bottom: 1px solid var(--line); }
-  .ic-hint:last-child { border-bottom: none; }
+  /* Modal */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    z-index: 200; backdrop-filter: blur(4px);
+  }
+  .modal-mask.show { opacity: 1; pointer-events: auto; }
+  .modal-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: var(--surface); border-radius: 24px 24px 0 0;
+    padding: 20px 20px calc(20px + var(--safe-bottom));
+    transform: translateY(105%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.25, 1);
+    z-index: 210; max-width: 480px; margin: 0 auto;
+    max-height: 80vh; overflow-y: auto;
+  }
+  .modal-sheet.show { transform: translateY(0); }
+  .modal-sheet h3 { font-size: 18px; margin-bottom: 16px; }
+  .modal-sheet .input-group { margin-bottom: 14px; }
+  .modal-sheet label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; font-weight: 600; }
+  .modal-sheet input, .modal-sheet textarea, .modal-sheet select {
+    width: 100%; padding: 12px 14px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: var(--surface-2);
+    color: var(--text); font-size: 15px; outline: none;
+    font-family: inherit;
+  }
+  .modal-sheet input:focus, .modal-sheet textarea:focus { border-color: var(--accent); }
+  .modal-sheet textarea { min-height: 80px; resize: vertical; }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn-row button { flex: 1; padding: 14px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-row .cancel { background: var(--surface-2); color: var(--text); }
+  .btn-row .confirm { background: var(--accent); color: #fff; }
+
+  /* Toast */
+  .toast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--surface-2); color: var(--text); padding: 12px 24px;
+    border-radius: 12px; font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    z-index: 300; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* History list in modal */
+  .history-list { max-height: 300px; overflow-y: auto; }
+  .history-item {
+    padding: 12px; border-radius: 12px; background: var(--surface-2);
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .history-item:active { background: var(--surface); }
+  .history-item .time { font-size: 11px; color: var(--text-3); }
+  .history-item .preview { font-size: 13px; margin-top: 4px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
 <div class="app">
-  <header>
-    <div class="brand">
-      <div class="logo">译</div>
-      <div>
-        <h1>实时听译</h1>
-        <p>对话场景 · 中英互译</p>
-      </div>
+  <div class="header">
+    <div>
+      <h1>实时翻译</h1>
+      <div class="sub" id="statusText">点击麦克风开始</div>
     </div>
-    <div style="display:flex;gap:6px;">
-      <button class="icon-btn" onclick="location.href='records.html'" aria-label="客户纪要" title="客户纪要">📝</button>
-      <button class="icon-btn" id="openSettings" aria-label="设置">⚙</button>
-    </div>
-  </header>
-
-  <div class="banner" id="compatBanner"></div>
-
-  <div class="status-bar">
-    <span class="dot" id="statusDot"></span>
-    <span id="statusText">未开始 · 点击下方麦克风开始听译</span>
+    <button class="icon-btn" onclick="showSettings()">⚙</button>
   </div>
 
-  <div class="dir-switch">
-    <div class="dir-card sel" data-dir="z2e" id="cardZ2E">
-      <div class="lg">中文 → English</div>
-      <div class="sub">对方说中文，你回英文</div>
+  <div class="dir-bar">
+    <div class="dir-pill active" data-dir="z2e" id="dirZ2E">
+      <div class="lang">中文</div>
+      <div class="sub">对方说</div>
     </div>
-    <div class="dir-arrow">⇄</div>
-    <div class="dir-card" data-dir="e2z" id="cardE2Z">
-      <div class="lg">English → 中文</div>
-      <div class="sub">对方说英文，你回中文</div>
+    <div class="dir-arrow">→</div>
+    <div class="dir-pill" data-dir="e2z" id="dirE2Z">
+      <div class="lang">English</div>
+      <div class="sub">对方说</div>
     </div>
+  </div>
+
+  <div class="customer-bar" id="customerBar" onclick="showCustomerModal()">
+    <div class="avatar" id="customerAvatar">+</div>
+    <div class="info">
+      <div class="name" id="customerName">选择客户</div>
+      <div class="hint" id="customerHint">录音将关联到此客户档案</div>
+    </div>
+    <div class="arrow">›</div>
   </div>
 
   <div class="mic-zone">
-    <button class="mic-btn" id="micBtn" aria-label="开始或停止听译">
+    <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
       <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
     </button>
-    <div class="mic-label" id="micLabel">开始听译</div>
-    <div class="mic-sub" id="micSub">识别语言：中文 · 译文：英文</div>
+    <div class="mic-hint" id="micHint">按住说话</div>
   </div>
 
-  <div class="live-zone" id="liveZone">
-    <div class="live-box">
-      <span class="tag"><span class="b" id="liveTagSrc">识别（中）</span></span>
-      <div id="interimText" class="placeholder">正在聆听……</div>
-    </div>
-    <div class="live-box">
-      <span class="tag" id="liveTagDst">翻译（英）</span>
-      <div id="transResult">…</div>
+  <div class="speaker-bar">
+    <button class="speaker-btn" id="speakerCustomer" onclick="setSpeaker('customer')">🧑💼 客户</button>
+    <button class="speaker-btn" id="speakerMe" onclick="setSpeaker('me')">🙋 我</button>
+  </div>
+
+  <div class="rt-zone">
+    <div class="rt-card">
+      <div class="label"><span class="dot" id="srcDot"></span><span id="srcLabel">识别原文</span></div>
+      <div class="text placeholder" id="srcText">等待语音输入...</div>
+      <div class="trans" id="dstText"></div>
     </div>
   </div>
 
-  <div class="text-zone" id="textZone">
-    <div class="text-title">文本翻译 <span class="text-tip">语音不可用时的备用入口</span></div>
-    <div class="text-row">
-      <input id="textInput" type="text" placeholder="输入文字，自动按上方方向翻译" autocomplete="off">
-      <button id="textSend">翻译</button>
+  <div class="insight-zone" id="insightZone" style="display:none">
+    <div class="insight-card">
+      <div class="title">💡 实时洞察</div>
+      <div class="tags" id="insightTags"></div>
     </div>
-    <div class="text-done" id="textDone"></div>
   </div>
 
-  <div class="insight-zone" id="insightZone">
-    <div class="insight-head">
-      <div class="insight-title">💡 实时洞察</div>
-      <div class="insight-status" id="insightStatus">等待中…</div>
-    </div>
-    <div class="insight-body" id="insightBody"></div>
+  <div class="quick-save" id="saveZone" style="display:none">
+    <button class="save-btn primary" onclick="saveConversation()">💾 保存到客户档案</button>
   </div>
 
-  <div class="session-head">
-    <h2>会话记录</h2>
-    <button id="clearBtn">清空</button>
-  </div>
-  <div id="sessionList"><div class="empty"><div class="big">🎙️</div>还没有记录，点麦克风开始吧</div></div>
+  <div style="height:100px"></div>
 </div>
 
-<div class="mask" id="mask"></div>
-<div class="sheet" id="sheet">
-  <div class="grab"></div>
-  <h3>设置</h3>
-  <div class="field">
-    <label>翻译方向（听译）</label>
-    <div class="dir-switch" style="margin:0">
-      <div class="dir-card sel" data-dir2="z2e" id="setCardZ2E"><div class="lg">中 → 英</div><div class="sub">对方说中文</div></div>
-      <div class="dir-arrow">⇄</div>
-      <div class="dir-card" data-dir2="e2z" id="setCardE2Z"><div class="lg">英 → 中</div><div class="sub">对方说英文</div></div>
-    </div>
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <a class="tab-item active" href="index.html">
+    <span class="icon">🎙️</span>
+    <span class="label">翻译</span>
+  </a>
+  <a class="tab-item" href="customers.html">
+    <span class="icon">👥</span>
+    <span class="label">客户</span>
+  </a>
+</nav>
+
+<!-- Customer Modal -->
+<div class="modal-mask" id="customerMask" onclick="hideCustomerModal()"></div>
+<div class="modal-sheet" id="customerSheet">
+  <h3>关联客户</h3>
+  <div class="input-group">
+    <label>新建客户</label>
+    <input type="text" id="newCustomerName" placeholder="公司名或客户名称">
   </div>
-  <div class="field">
+  <div class="input-group">
+    <label>联系人</label>
+    <input type="text" id="newCustomerContact" placeholder="联系人姓名（可选）">
+  </div>
+  <div class="btn-row">
+    <button class="cancel" onclick="hideCustomerModal()">取消</button>
+    <button class="confirm" onclick="createCustomer()">创建并关联</button>
+  </div>
+  <div style="margin-top:20px">
+    <label>或选择现有客户</label>
+    <div class="history-list" id="customerList"></div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-mask" id="settingsMask" onclick="hideSettings()"></div>
+<div class="modal-sheet" id="settingsSheet">
+  <h3>设置</h3>
+  <div class="input-group">
     <label>语音识别引擎</label>
     <select id="engineSel">
-      <option value="iflytek">讯飞（推荐 · 境内可用）</option>
-      <option value="native">浏览器内置（iPhone Safari）</option>
+      <option value="iflytek">讯飞听写（推荐）</option>
+      <option value="native">浏览器内置</option>
     </select>
   </div>
-  <div class="field">
-    <label>智能分析 · 大模型 API Key（可选）</label>
-    <input id="llmKey" type="text" placeholder="千帆/文心/讯飞等平台的 API Key（留空则只用本地规则）" autocomplete="off">
-    <div class="hint">实时洞察需要调用大模型分析对话内容。可选：千帆 qianfan、文心 ernie、讯飞 spark 等平台的 API Key。密钥仅保存在本机，不会上传到服务器。</div>
+  <div class="input-group">
+    <label>大模型 API Key（用于智能分析）</label>
+    <input type="text" id="llmKey" placeholder="千帆/文心/讯飞等平台的 API Key">
+    <div style="font-size:11px;color:var(--text-3);margin-top:4px">留空则仅使用本地规则分析</div>
   </div>
-  <button class="btn-primary" id="saveBtn">保存并关闭</button>
+  <div class="btn-row">
+    <button class="cancel" onclick="hideSettings()">取消</button>
+    <button class="confirm" onclick="saveSettings()">保存</button>
+  </div>
 </div>
 
-<div class="note" id="httpxNote" style="margin-top:18px"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-  /* ================= 工具函数 ================= */
-  function $(id) { return document.getElementById(id); }
+// ================= 数据层 =================
+const DB = {
+  getCustomers() {
+    try { return JSON.parse(localStorage.getItem('e2c_customers') || '[]'); }
+    catch(e) { return []; }
+  },
+  saveCustomers(list) {
+    localStorage.setItem('e2c_customers', JSON.stringify(list));
+  },
+  getConversations() {
+    try { return JSON.parse(localStorage.getItem('e2c_conversations') || '[]'); }
+    catch(e) { return []; }
+  },
+  saveConversations(list) {
+    localStorage.setItem('e2c_conversations', JSON.stringify(list));
+  },
+  getSettings() {
+    try { return JSON.parse(localStorage.getItem('e2c_settings') || '{}'); }
+    catch(e) { return {}; }
+  },
+  saveSettings(s) {
+    localStorage.setItem('e2c_settings', JSON.stringify(s));
+  },
+  generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
+};
 
-  /* ================= 讯飞配置 ================= */
-  // 硬编码讯飞密钥（建议自行注册更换）
-  var xconfig = {
-    appId: "63e1b970",
-    apiKey: "5d2791ab0134866b29d644fb78fb46ec",
-    apiSecret: "NjFlNjMzNzEyNTFiNmE3YWY2MzFkOWEx",
-    host: "iat-api.xfyun.cn",
-    uri:  "/v2/iat"
+// ================= 讯飞配置 =================
+const xconfig = {
+  appId: "63e1b970",
+  apiKey: "5d2791ab0134866b29d644fb78fb46ec",
+  apiSecret: "NjFlNjMzNzEyNTFiNmE3YWY2MzFkOWEx",
+  host: "iat-api.xfyun.cn",
+  uri: "/v2/iat"
+};
+
+// ================= 状态 =================
+let cfg = { dir: 'z2e', engine: 'iflytek', llmKey: '' };
+let ws = null, audioCtx = null, sourceNode = null, processorNode = null;
+let audioStream = null, frameInterval = null, silenceTimer = null;
+let isRecording = false, currentSession = null;
+let currentCustomer = null;
+let currentSpeaker = 'customer';
+let insightTags = [], matchedProducts = [];
+
+// ================= 产品库 =================
+const GXYKIT_PRODUCTS = [
+  { model: "GC01", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","3 USB","LED"], sellingPoints: ["120W","3 USB Ports","LED Lights"] },
+  { model: "GC05", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
+  { model: "GC13", name: "多设备扩展车充", category: "Car Charger", keywords: ["PD","45W","retractable"], sellingPoints: ["PD Fast Charge","Retractable"] },
+  { model: "GC15", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable","LED"], sellingPoints: ["65W","Retractable","LED Lights"] },
+  { model: "GC21", name: "Car Charger", category: "Car Charger", keywords: ["83W","retractable"], sellingPoints: ["83W","Retractable"] },
+  { model: "GC21-Z", name: "Car Charger", category: "Car Charger", keywords: ["BT 5.4","83W","retractable"], sellingPoints: ["BT 5.4","83W","Retractable"] },
+  { model: "GC25", name: "伸缩线车充", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
+  { model: "GZ11", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","retractable","LED"], sellingPoints: ["BT 5.3","Retractable","LED Lights"] },
+  { model: "G21", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.3","3 USB","FM"], sellingPoints: ["BT 5.3","3 USB Ports"] },
+  { model: "G63", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.3","FM"], sellingPoints: ["BT 5.3"] },
+  { model: "GR05", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.3"], sellingPoints: ["BT 5.3"] },
+  { model: "GR11", name: "BT Audio RX/TX 2-in-1", category: "Bluetooth TX/RX", keywords: ["BT 5.4","USB-C"], sellingPoints: ["BT 5.4","USB-C"] }
+];
+
+// ================= 初始化 =================
+function init() {
+  const saved = DB.getSettings();
+  cfg = { ...cfg, ...saved };
+  updateDirUI();
+  setSpeaker('customer');
+  loadCurrentCustomer();
+  document.getElementById('engineSel').value = cfg.engine;
+  document.getElementById('llmKey').value = cfg.llmKey || '';
+}
+
+function updateDirUI() {
+  document.getElementById('dirZ2E').classList.toggle('active', cfg.dir === 'z2e');
+  document.getElementById('dirE2Z').classList.toggle('active', cfg.dir === 'e2z');
+  document.getElementById('srcLabel').textContent = cfg.dir === 'z2e' ? '中文识别' : 'English Recognition';
+}
+
+function setSpeaker(who) {
+  currentSpeaker = who;
+  document.getElementById('speakerCustomer').classList.toggle('active', who === 'customer');
+  document.getElementById('speakerMe').classList.toggle('active', who === 'me');
+}
+
+// ================= 客户管理 =================
+function loadCurrentCustomer() {
+  const id = sessionStorage.getItem('e2c_active_customer');
+  if (id) {
+    const customers = DB.getCustomers();
+    currentCustomer = customers.find(c => c.id === id) || null;
+  }
+  updateCustomerBar();
+}
+
+function updateCustomerBar() {
+  const bar = document.getElementById('customerBar');
+  const avatar = document.getElementById('customerAvatar');
+  const name = document.getElementById('customerName');
+  const hint = document.getElementById('customerHint');
+  if (currentCustomer) {
+    avatar.textContent = currentCustomer.name.charAt(0).toUpperCase();
+    name.textContent = currentCustomer.name;
+    hint.textContent = currentCustomer.contact || '点击更换客户';
+    bar.style.borderColor = 'var(--accent)';
+  } else {
+    avatar.textContent = '+';
+    name.textContent = '选择客户';
+    hint.textContent = '录音将关联到此客户档案';
+    bar.style.borderColor = 'transparent';
+  }
+}
+
+function showCustomerModal() {
+  document.getElementById('customerMask').classList.add('show');
+  document.getElementById('customerSheet').classList.add('show');
+  renderCustomerList();
+}
+
+function hideCustomerModal() {
+  document.getElementById('customerMask').classList.remove('show');
+  document.getElementById('customerSheet').classList.remove('show');
+}
+
+function renderCustomerList() {
+  const list = document.getElementById('customerList');
+  const customers = DB.getCustomers();
+  if (!customers.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:20px;font-size:13px">暂无客户，上方创建新客户</div>';
+    return;
+  }
+  list.innerHTML = customers.map(c => `
+    <div class="history-item" onclick="selectCustomer('${c.id}')">
+      <div class="time">${new Date(c.createdAt).toLocaleDateString('zh-CN')}</div>
+      <div class="preview">${c.name} ${c.contact ? '· ' + c.contact : ''}</div>
+    </div>
+  `).join('');
+}
+
+function createCustomer() {
+  const name = document.getElementById('newCustomerName').value.trim();
+  if (!name) { showToast('请输入客户名称'); return; }
+  const contact = document.getElementById('newCustomerContact').value.trim();
+  const customer = {
+    id: DB.generateId(),
+    name, contact,
+    createdAt: new Date().toISOString(),
+    tags: [], notes: ''
   };
+  const customers = DB.getCustomers();
+  customers.unshift(customer);
+  DB.saveCustomers(customers);
+  currentCustomer = customer;
+  sessionStorage.setItem('e2c_active_customer', customer.id);
+  updateCustomerBar();
+  hideCustomerModal();
+  showToast('已创建并关联客户');
+  document.getElementById('newCustomerName').value = '';
+  document.getElementById('newCustomerContact').value = '';
+}
 
-  /* ================= 状态 ================= */
-  var cfg = { dir: "z2e", engine: "iflytek" };
-  var ws = null, mediaRecorder = null, audioStream = null;
-  var listening = false, startedOnce = false, restartFail = 0;
-  var pendingQueue = [], translating = false;
-  var lastFinalText = "";
-  var nativeRec = null;
-  var frameInterval = null, silenceTimer = null;
-
-  /* ================= 方向配置 ================= */
-  function dirInfo(mode) {
-    if (mode === "z2e") return { srcLang: "zh-CN", srcTag: "中文", dstTag: "英文", micSub: "识别语言：中文 · 译文：英文", liveSrc: "识别（中）", liveDst: "翻译（英）", myFrom: "zh", myTo: "en" };
-    return { srcLang: "en-US", srcTag: "英文", dstTag: "中文", micSub: "识别语言：英文 · 译文：中文", liveSrc: "识别（英）", liveDst: "翻译（中）", myFrom: "en", myTo: "zh" };
+function selectCustomer(id) {
+  const customers = DB.getCustomers();
+  currentCustomer = customers.find(c => c.id === id) || null;
+  if (currentCustomer) {
+    sessionStorage.setItem('e2c_active_customer', id);
+    updateCustomerBar();
+    hideCustomerModal();
+    showToast('已关联客户: ' + currentCustomer.name);
   }
+}
 
-  /* ================= 兼容检查 ================= */
-  function showCompatBanner(issues) {
-    var banner = $("compatBanner");
-    banner.innerHTML = "⚠️ " + issues.join("<br>⚠️ ");
-    banner.classList.add("show");
-  }
+// ================= 录音控制 =================
+function toggleRecording() {
+  if (isRecording) stopRecording();
+  else startRecording();
+}
 
-  function compatCheck() {
-    var banner = $("compatBanner");
-    var msgs = [];
-    if (!window.WebSocket) msgs.push("当前浏览器不支持 WebSocket，无法使用讯飞语音听写。");
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) msgs.push("当前浏览器不支持麦克风采集。");
-    if (msgs.length) {
-      banner.innerHTML = "⚠️ " + msgs.join("<br>⚠️ ");
-      banner.classList.add("show");
-    }
+function startRecording() {
+  if (!currentCustomer) {
+    showToast('请先选择或创建客户');
+    showCustomerModal();
+    return;
   }
+  isRecording = true;
+  currentSession = {
+    id: DB.generateId(),
+    customerId: currentCustomer.id,
+    startTime: new Date().toISOString(),
+    segments: [],
+    signals: [],
+    products: []
+  };
+  insightTags = []; matchedProducts = [];
+  updateRecordingUI(true);
+  if (cfg.engine === 'iflytek') startIflytek();
+  else startNative();
+}
 
-  /* ================= 讯飞鉴权（HMAC-SHA256） ================= */
-  function toBase64(str) {
-    var bytes = new TextEncoder().encode(str);
-    var bin = "";
-    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    return btoa(bin);
+function stopRecording() {
+  isRecording = false;
+  updateRecordingUI(false);
+  if (cfg.engine === 'iflytek') stopIflytek();
+  else stopNative();
+  if (currentSession && currentSession.segments.length > 0) {
+    document.getElementById('saveZone').style.display = 'block';
+    generateInsight();
   }
-  function sign(raw, key) {
-    var enc = new TextEncoder();
-    return crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]).then(function (k) {
-      return crypto.subtle.sign("HMAC", k, enc.encode(raw));
+}
+
+function updateRecordingUI(recording) {
+  const btn = document.getElementById('micBtn');
+  const hint = document.getElementById('micHint');
+  const dot = document.getElementById('srcDot');
+  btn.classList.toggle('recording', recording);
+  hint.textContent = recording ? '正在录音...' : '点击开始录音';
+  hint.classList.toggle('recording', recording);
+  dot.classList.toggle('active', recording);
+}
+
+// ================= 讯飞语音 =================
+function buildAuthUrl() {
+  const date = new Date().toUTCString();
+  const signatureOrigin = `host: ${xconfig.host}\ndate: ${date}\nGET ${xconfig.uri} HTTP/1.1`;
+  const encoder = new TextEncoder();
+  return crypto.subtle.importKey('raw', encoder.encode(xconfig.apiSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    .then(key => crypto.subtle.sign('HMAC', key, encoder.encode(signatureOrigin)))
+    .then(sig => {
+      const signature = btoa(String.fromCharCode(...new Uint8Array(sig)));
+      const auth = btoa(`api_key="${xconfig.apiKey}", algorithm="hmac-sha256", headers="host date request-line", signature="${signature}"`);
+      return `wss://${xconfig.host}${xconfig.uri}?authorization=${encodeURIComponent(auth)}&date=${encodeURIComponent(date)}&host=${encodeURIComponent(xconfig.host)}`;
     });
-  }
-  function arrayToBase64(buf) {
-    var bytes = new Uint8Array(buf);
-    var bin = "";
-    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    return btoa(bin);
-  }
-  function buildAuthUrl() {
-    var date = new Date().toUTCString();
-    var signatureOrigin = "host: " + xconfig.host + "\ndate: " + date + "\nGET " + xconfig.uri + " HTTP/1.1";
-    return sign(signatureOrigin, xconfig.apiSecret).then(function (sig) {
-      var signature = arrayToBase64(sig);
-      var authorizationOrigin = 'api_key="' + xconfig.apiKey + '", algorithm="hmac-sha256", headers="host date request-line", signature="' + signature + '"';
-      var authorization = toBase64(authorizationOrigin);
-      return "wss://" + xconfig.host + xconfig.uri + "?authorization=" + encodeURIComponent(authorization) + "&date=" + encodeURIComponent(date) + "&host=" + encodeURIComponent(xconfig.host);
-    });
-  }
+}
 
-  /* ================= 音频采集 ================= */
-  var audioCtx = null, sourceNode = null, processorNode = null;
-  function startAudioCapture(onChunk) {
-    return navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function (stream) {
-      audioStream = stream;
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      var sourceRate = audioCtx.sampleRate;
-      var targetRate = 16000;
-      var ratio = targetRate / sourceRate;
-      sourceNode = audioCtx.createMediaStreamSource(stream);
-      var bufferSize = 2048;
-      processorNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
-      processorNode.onaudioprocess = function (e) {
-        var input = e.inputBuffer.getChannelData(0);
-        var outLen = Math.max(1, Math.floor(input.length * ratio));
-        var pcm = new Int16Array(outLen);
-        for (var i = 0; i < outLen; i++) {
-          var idx = i / ratio;
-          var i0 = Math.floor(idx);
-          var frac = idx - i0;
-          var v = input[i0] + ((input[i0 + 1] || input[i0]) - input[i0]) * frac;
-          v = Math.max(-1, Math.min(1, v));
-          pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
-        }
-        onChunk(pcm);
-      };
-      sourceNode.connect(processorNode);
-      return true;
-    });
-  }
-  function stopAudioCapture() {
-    if (processorNode) { processorNode.disconnect(); processorNode.onaudioprocess = null; processorNode = null; }
-    if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
-    if (audioCtx) { audioCtx.close(); audioCtx = null; }
-    if (audioStream) { audioStream.getTracks().forEach(function (t) { t.stop(); }); audioStream = null; }
-  }
+function startIflytek() {
+  buildAuthUrl().then(url => {
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+    let audioBuffer = [], totalLen = 0;
+    let isSpeaking = false;
 
-  /* ================= 讯飞 WebSocket 启动 ================= */
-  function startIflytek() {
-    if (!window.WebSocket) { setStatus("浏览器不支持 WebSocket", "err"); return; }
-    buildAuthUrl().then(function (url) {
-      ws = new WebSocket(url);
-      ws.binaryType = "arraybuffer";
-      var audioBuffer = [];
-      var totalLen = 0;
-      var isSpeaking = false;
-
-      ws.onopen = function () {
-        startedOnce = true; restartFail = 0;
-        setStatus("正在聆听…… 说完一句自动翻译", "on");
-        startAudioCapture(function (pcm) {
-          if (!listening || !ws || ws.readyState !== 1) return;
-          // 检测语音活跃度（基于能量阈值）
-          var energy = 0;
-          for (var k = 0; k < Math.min(pcm.length, 256); k++) { var v = pcm[k] / 32768; energy += v * v; }
-          var hasVoice = energy > 0.0005;
-          if (hasVoice) { isSpeaking = true; if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } }
-          else if (isSpeaking && !silenceTimer) {
-            silenceTimer = setTimeout(function () { isSpeaking = false; }, 500);
-          }
-          audioBuffer.push(pcm);
-          totalLen += pcm.length;
-          // 每 0.2s 或 32768 样本（≈2秒@16kHz）发送一次
-          if (totalLen >= 32768) {
-            var combined = new Int16Array(totalLen);
-            var offset = 0;
-            for (var i = 0; i < audioBuffer.length; i++) { combined.set(audioBuffer[i], offset); offset += audioBuffer[i].length; }
-            audioBuffer = []; totalLen = 0;
-            var base64 = arrayBufferToBase64(combined.buffer);
-            sendAudioFrame(base64, 1);
-          }
-        }).then(function () {
-          // 首帧
-          sendAudioFrame("", 0);
-          // 定时 flush 未发送的音频（确保不丢尾音）
-          frameInterval = setInterval(function () {
-            if (!listening || !ws || ws.readyState !== 1) return;
-            if (totalLen > 0) {
-              var combined = new Int16Array(totalLen);
-              var offset = 0;
-              for (var i = 0; i < audioBuffer.length; i++) { combined.set(audioBuffer[i], offset); offset += audioBuffer[i].length; }
+    ws.onopen = () => {
+      document.getElementById('statusText').textContent = '正在聆听...';
+      navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } })
+        .then(stream => {
+          audioStream = stream;
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const sourceRate = audioCtx.sampleRate;
+          const ratio = 16000 / sourceRate;
+          sourceNode = audioCtx.createMediaStreamSource(stream);
+          processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+          processorNode.onaudioprocess = e => {
+            if (!isRecording) return;
+            const input = e.inputBuffer.getChannelData(0);
+            const outLen = Math.max(1, Math.floor(input.length * ratio));
+            const pcm = new Int16Array(outLen);
+            for (let i = 0; i < outLen; i++) {
+              const idx = i / ratio;
+              const i0 = Math.floor(idx);
+              const frac = idx - i0;
+              let v = input[i0] + ((input[i0 + 1] || input[i0]) - input[i0]) * frac;
+              v = Math.max(-1, Math.min(1, v));
+              pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
+            }
+            // Voice activity detection
+            let energy = 0;
+            for (let k = 0; k < Math.min(pcm.length, 256); k++) {
+              const vv = pcm[k] / 32768; energy += vv * vv;
+            }
+            const hasVoice = energy > 0.0005;
+            if (hasVoice) { isSpeaking = true; if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } }
+            else if (isSpeaking && !silenceTimer) {
+              silenceTimer = setTimeout(() => { isSpeaking = false; }, 500);
+            }
+            audioBuffer.push(pcm); totalLen += pcm.length;
+            if (totalLen >= 32768) {
+              const combined = new Int16Array(totalLen);
+              let offset = 0;
+              for (const chunk of audioBuffer) { combined.set(chunk, offset); offset += chunk.length; }
               audioBuffer = []; totalLen = 0;
-              sendAudioFrame(arrayBufferToBase64(combined.buffer), 1);
+              sendFrame(btoa(String.fromCharCode(...new Uint8Array(combined.buffer))), 1);
+            }
+          };
+          sourceNode.connect(processorNode);
+          sendFrame('', 0);
+          frameInterval = setInterval(() => {
+            if (!isRecording || !ws || ws.readyState !== 1) return;
+            if (totalLen > 0) {
+              const combined = new Int16Array(totalLen);
+              let offset = 0;
+              for (const chunk of audioBuffer) { combined.set(chunk, offset); offset += chunk.length; }
+              audioBuffer = []; totalLen = 0;
+              sendFrame(btoa(String.fromCharCode(...new Uint8Array(combined.buffer))), 1);
             }
           }, 500);
-        }).catch(function (err) {
-          setStatus("无法获取麦克风：" + err.message, "err");
-          stopIflytek();
-        });
-      };
+        })
+        .catch(err => { showToast('麦克风错误: ' + err.message); stopRecording(); });
+    };
 
-      ws.onmessage = function (evt) {
-        var data = JSON.parse(evt.data);
-        if (data.code !== 0) { setStatus("讯飞错误：" + data.message, "err"); if (data.code === 11200) { setStatus("鉴权错误，请检查 API Key", "err"); } stopIflytek(); return; }
-        var res = data.data;
-        if (res && res.result) {
-          var wsResult = res.result.ws || [];
-          var text = "";
-          for (var i = 0; i < wsResult.length; i++) { text += wsResult[i].cw[0].w; }
-          var status = res.status;
-          if (status === 2 || status === 0) {
-            if (text && text !== lastFinalText) {
-              lastFinalText = text;
-              pendingQueue.push(text);
-              pumpQueue();
+    ws.onmessage = evt => {
+      const data = JSON.parse(evt.data);
+      if (data.code !== 0) { showToast('讯飞错误: ' + data.message); return; }
+      const res = data.data;
+      if (res && res.result) {
+        const wsResult = res.result.ws || [];
+        let text = '';
+        for (const w of wsResult) text += w.cw[0].w;
+        if (text) {
+          document.getElementById('srcText').textContent = text;
+          document.getElementById('srcText').classList.remove('placeholder');
+          translateText(text).then(trans => {
+            document.getElementById('dstText').textContent = trans;
+            if (currentSession) {
+              currentSession.segments.push({ time: new Date().toLocaleTimeString('zh-CN'), src: text, dst: trans, dir: cfg.dir, speaker: currentSpeaker });
+              analyzeText(text);
             }
-          }
-          showInterim(text || "正在聆听……");
+          });
         }
-        if (res && res.status === 2) {
-          // 讯飞判定一句话结束，发送结束帧后自动开启新会话
-          sendAudioFrame("", 2);
+        if (res.status === 2) {
+          sendFrame('', 2);
           if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
           if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-          setTimeout(function () { if (listening) startIflytek(); }, 500);
+          setTimeout(() => { if (isRecording) startIflytek(); }, 500);
         }
-      };
-
-      ws.onerror = function () { setStatus("连接出错，正在重试…", "err"); retryIflytek(); };
-      ws.onclose = function () { if (frameInterval) { clearInterval(frameInterval); frameInterval = null; } if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } if (listening) retryIflytek(); };
-    }).catch(function (err) {
-      setStatus("鉴权失败：" + err.message, "err");
-    });
-  }
-
-  function sendAudioFrame(base64, statusCode) {
-    var frame = {
-      common: { app_id: xconfig.appId },
-      business: { language: cfg.dir === "z2e" ? "zh_cn" : "en_us", domain: "iat", accent: cfg.dir === "z2e" ? "mandarin" : "mandarin", vad_eos: 5000, dwa: "wpgs" },
-      data: { status: statusCode, format: "audio/L16;rate=16000", encoding: "raw", audio: base64 }
-    };
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(frame));
-  }
-
-  function arrayBufferToBase64(buffer) {
-    var bytes = new Uint8Array(buffer);
-    var bin = "";
-    for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-    return btoa(bin);
-  }
-
-  function retryIflytek() {
-    restartFail++;
-    if (restartFail > 3) { setStatus("连接多次失败，已停止。请检查网络后重试。", "err"); stopIflytek(); return; }
-    setTimeout(function () { if (listening) startIflytek(); }, 800);
-  }
-
-  function stopIflytek() {
-    listening = false; startedOnce = false;
-    if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
-    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-    if (ws && ws.readyState === 1) { try { sendAudioFrame("", 2); } catch (e) {} }
-    if (ws) { ws.close(); ws = null; }
-    stopAudioCapture();
-    setMicUI(false);
-    setStatus("已停止", "");
-    $("liveZone").classList.remove("show");
-  }
-
-  /* ================= 浏览器原生语音识别 ================= */
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  function startNative() {
-    if (!SR) { setStatus("当前浏览器不支持语音识别", "err"); return; }
-    var d = dirInfo(cfg.dir);
-    nativeRec = new SR();
-    nativeRec.lang = d.srcLang;
-    nativeRec.continuous = true;
-    nativeRec.interimResults = true;
-    nativeRec.maxAlternatives = 1;
-
-    nativeRec.onstart = function () {
-      startedOnce = true; restartFail = 0;
-      setStatus("正在聆听…… 说完一句自动翻译", "on");
-    };
-    nativeRec.onresult = function (ev) {
-      var interim = "";
-      for (var i = ev.resultIndex; i < ev.results.length; i++) {
-        var r = ev.results[i];
-        if (r.isFinal) {
-          var t = (r[0] && r[0].transcript || "").trim();
-          if (t) { pendingQueue.push(t); pumpQueue(); }
-        } else if (r[0] && r[0].transcript) { interim += r[0].transcript; }
       }
-      showInterim(interim || "正在聆听……");
     };
-    nativeRec.onerror = function (ev) {
-      if (ev.error === "not-allowed") { setStatus("麦克风权限被拒绝，请在设置中开启", "err"); stopNative(); return; }
-      if (ev.error === "network") { setStatus("网络错误（安卓版 Chrome 依赖 Google 服务境内不可用）", "err"); }
-      else { setStatus("识别错误：" + ev.error, "err"); }
-      if (listening && restartFail < 3) { restartFail++; setTimeout(function () { if (listening) startNative(); }, 600); }
-      else { stopNative(); }
-    };
-    nativeRec.onend = function () {
-      if (!startedOnce && restartFail < 3) { restartFail++; setTimeout(function () { if (listening) startNative(); }, 400); }
-      else if (listening) { setTimeout(function () { if (listening) startNative(); }, 200); }
-    };
-    nativeRec.start();
-  }
-  function stopNative() {
-    listening = false; startedOnce = false;
-    if (nativeRec) { try { nativeRec.stop(); } catch(e){} nativeRec = null; }
-    setMicUI(false); setStatus("已停止", ""); $("liveZone").classList.remove("show");
-  }
 
-  /* ================= 公共控制 ================= */
-  function startListening() {
-    listening = true; lastFinalText = "";
-    if (!currentSession.startTime) startNewSession();
-    $("liveZone").classList.add("show");
-    $("interimText").textContent = "正在聆听……"; $("interimText").classList.add("placeholder");
-    $("transResult").textContent = "…";
-    if (cfg.engine === "iflytek") startIflytek(); else startNative();
-  }
-  function stopListening(manual) {
-    listening = false; restartFail = 0; startedOnce = false;
-    if (cfg.engine === "iflytek") stopIflytek(); else stopNative();
-    // 显示生成纪要按钮
-    if (currentSession.segments.length > 0) showSummaryBtn();
-  }
+    ws.onerror = () => { showToast('连接错误，重试中...'); };
+    ws.onclose = () => { if (isRecording) setTimeout(() => startIflytek(), 800); };
+  });
+}
 
-  /* ================= 纪要生成与保存 ================= */
-  function showSummaryBtn() {
-    if ($("summaryBtn")) return;
-    var btn = document.createElement("button");
-    btn.id = "summaryBtn";
-    btn.className = "btn-primary";
-    btn.style.cssText = "margin-top:12px;";
-    btn.textContent = "📝 生成客户沟通纪要";
-    btn.onclick = generateSummary;
-    $("sessionList").parentNode.insertBefore(btn, $("sessionList").nextSibling);
-  }
+function sendFrame(audio, status) {
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({
+    common: { app_id: xconfig.appId },
+    business: { language: cfg.dir === 'z2e' ? 'zh_cn' : 'en_us', domain: 'iat', accent: 'mandarin', vad_eos: 5000, dwa: 'wpgs' },
+    data: { status, format: 'audio/L16;rate=16000', encoding: 'raw', audio }
+  }));
+}
 
-  function generateSummary() {
-    var s = currentSession;
-    var duration = Math.round((new Date() - new Date(s.startTime)) / 60000);
-    var html = '<div class="insight-zone show" style="margin-top:16px;">' +
-      '<div class="insight-head"><div class="insight-title">📋 客户沟通纪要</div></div>' +
-      '<div class="insight-body">' +
-      '<div class="insight-card"><div class="ic-title">基本信息</div>' +
-      '<div style="font-size:12px;color:var(--text-2);line-height:1.7;">' +
-      '⏱ 时长：' + duration + ' 分钟<br>' +
-      '📅 时间：' + new Date(s.startTime).toLocaleString("zh-CN") + '<br>' +
-      '🗣 对话轮次：' + s.segments.length + ' 句' +
-      '</div></div>';
+function stopIflytek() {
+  if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+  if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+  if (ws && ws.readyState === 1) { try { sendFrame('', 2); } catch(e) {} }
+  if (ws) { ws.close(); ws = null; }
+  if (processorNode) { processorNode.disconnect(); processorNode.onaudioprocess = null; processorNode = null; }
+  if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+  document.getElementById('statusText').textContent = '点击麦克风开始';
+}
 
-    if (sessionSignals.length) {
-      html += '<div class="insight-card"><div class="ic-title">客户信号</div><div class="ic-tags">';
-      for (var i = 0; i < sessionSignals.length; i++) html += '<span class="ic-tag ' + (i < 2 ? 'hot' : '') + '">' + sessionSignals[i] + '</span>';
-      html += '</div></div>';
-    }
-
-    if (sessionProducts.length) {
-      html += '<div class="insight-card"><div class="ic-title">匹配产品</div><div class="ic-products">';
-      for (var i = 0; i < Math.min(sessionProducts.length, 5); i++) {
-        var p = sessionProducts[i];
-        html += '<div class="ic-product"><span class="p-model">' + p.model + '</span><span class="p-desc">' + p.name + ' · ' + (p.sellingPoints.slice(0,2).join(" · ") || "") + '</span></div>';
+// ================= 浏览器原生语音识别 =================
+let nativeRec = null;
+function startNative() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast('浏览器不支持语音识别'); return; }
+  nativeRec = new SR();
+  nativeRec.lang = cfg.dir === 'z2e' ? 'zh-CN' : 'en-US';
+  nativeRec.continuous = true;
+  nativeRec.interimResults = true;
+  nativeRec.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        const text = e.results[i][0].transcript.trim();
+        if (text) {
+          document.getElementById('srcText').textContent = text;
+          document.getElementById('srcText').classList.remove('placeholder');
+          translateText(text).then(trans => {
+            document.getElementById('dstText').textContent = trans;
+            if (currentSession) {
+              currentSession.segments.push({ time: new Date().toLocaleTimeString('zh-CN'), src: text, dst: trans, dir: cfg.dir, speaker: currentSpeaker });
+              analyzeText(text);
+            }
+          });
+        }
       }
-      html += '</div></div>';
     }
-
-    html += '<div class="insight-card"><div class="ic-title">对话摘要</div>' +
-      '<div style="font-size:11.5px;color:var(--text-2);line-height:1.7;max-height:200px;overflow-y:auto;">';
-    for (var i = s.segments.length - 1; i >= 0; i--) {
-      var seg = s.segments[i];
-      html += '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line);">' +
-        '<span style="color:var(--text-dim);font-size:10px;">' + seg.time + '</span> ' +
-        '<span style="color:var(--blue);font-size:10px;font-weight:600;">' + (seg.dir === "z2e" ? "中" : "英") + '</span><br>' +
-        seg.src + (seg.dst ? '<br><span style="color:var(--text-dim);">→ ' + seg.dst + '</span>' : '') +
-        '</div>';
-    }
-    html += '</div></div>';
-
-    html += '<div class="insight-card"><div class="ic-title">备注</div>' +
-      '<textarea id="customerNote" style="width:100%;min-height:80px;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--card-2);color:var(--text);font-size:13px;outline:none;resize:vertical;" placeholder="填写客户公司名、联系人、展位号、微信、下次跟进计划等..."></textarea>' +
-      '</div>';
-
-    html += '<div style="display:flex;gap:8px;margin-top:4px;">' +
-      '<button class="btn-primary" style="flex:1;" onclick="saveSummary()">💾 保存纪要</button>' +
-      '<button class="btn-primary" style="flex:1;background:var(--text-dim);" onclick="copySummary()">📋 复制文本</button>' +
-      '</div>';
-
-    html += '</div></div>';
-
-    // 插入到页面底部
-    var div = document.createElement("div");
-    div.innerHTML = html;
-    $("app").appendChild(div);
-    // 移除生成按钮
-    var btn = $("summaryBtn");
-    if (btn) btn.remove();
-  }
-
-  function saveSummary() {
-    var note = $("customerNote") ? $("customerNote").value.trim() : "";
-    var record = {
-      id: Date.now(),
-      startTime: currentSession.startTime,
-      endTime: new Date().toISOString(),
-      segments: currentSession.segments,
-      signals: sessionSignals,
-      products: sessionProducts,
-      note: note,
-      customerInfo: currentSession.customerInfo || {}
-    };
-    try {
-      var records = JSON.parse(localStorage.getItem("e2c_records") || "[]");
-      records.unshift(record);
-      localStorage.setItem("e2c_records", JSON.stringify(records));
-      alert("✅ 纪要已保存！共 " + records.length + " 条历史记录。");
-    } catch(e) {
-      alert("保存失败：" + e.message);
-    }
-  }
-
-  function copySummary() {
-    var s = currentSession;
-    var text = "📋 客户沟通纪要\n━━━━━━━━━━━━━━\n";
-    text += "时间：" + new Date(s.startTime).toLocaleString("zh-CN") + "\n";
-    text += "轮次：" + s.segments.length + " 句\n\n";
-    if (sessionSignals.length) text += "【客户信号】\n" + sessionSignals.join(", ") + "\n\n";
-    if (sessionProducts.length) {
-      text += "【匹配产品】\n";
-      for (var i = 0; i < sessionProducts.length; i++) {
-        text += "- " + sessionProducts[i].model + "：" + sessionProducts[i].name + "\n";
-      }
-      text += "\n";
-    }
-    text += "【对话摘要】\n";
-    for (var i = s.segments.length - 1; i >= 0; i--) {
-      text += "[" + s.segments[i].time + "] " + s.segments[i].src + "\n";
-      if (s.segments[i].dst) text += "  → " + s.segments[i].dst + "\n";
-    }
-    var note = $("customerNote") ? $("customerNote").value.trim() : "";
-    if (note) text += "\n【备注】\n" + note;
-    copyText(text, null);
-    alert("📋 已复制到剪贴板");
-  }
-
-  /* ================= 翻译 ================= */
-  function translateText(text, from, to) {
-    var url = "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(text) + "&langpair=" + from + "|" + to;
-    return fetch(url).then(function (r) { return r.json(); }).then(function (j) {
-      if (j.responseStatus === 200) return j.responseData.translatedText;
-      throw new Error(j.responseDetails || "翻译失败");
-    });
-  }
-  function pumpQueue() {
-    if (translating || !pendingQueue.length) return;
-    translating = true;
-    var t = pendingQueue.shift();
-    var d = dirInfo(cfg.dir);
-    translateText(t, d.myFrom, d.myTo)
-      .then(function (trans) { addSegment(t, trans, d); translating = false; pumpQueue(); })
-      .catch(function (err) { addSegment(t, "", d, err.message); translating = false; pumpQueue(); });
-  }
-
-  /* ================= UI 辅助 ================= */
-  function showInterim(text) {
-    var el = $("interimText");
-    el.textContent = text || "正在聆听……";
-    el.classList.toggle("placeholder", !text);
-  }
-  function setStatus(text, mode) {
-    $("statusText").textContent = text;
-    var dot = $("statusDot");
-    dot.className = "dot" + (mode ? " " + mode : "");
-  }
-  function setMicUI(on) {
-    var btn = $("micBtn"), label = $("micLabel");
-    btn.classList.toggle("active", on);
-    label.textContent = on ? "停止听译" : "开始听译";
-  }
-  var currentSession = { startTime: null, segments: [], customerInfo: {} };
-  function startNewSession() {
-    currentSession = { startTime: new Date().toISOString(), segments: [], customerInfo: {} };
-    resetInsight();
-    $("sessionList").innerHTML = '<div class="empty"><div class="big">🎙️</div>还没有记录，点麦克风开始吧</div>';
-  }
-
-  function addSegment(src, dst, d, errMsg) {
-    var list = $("sessionList");
-    if (list.children.length === 1 && list.children[0].classList.contains("empty")) list.innerHTML = "";
-    var seg = document.createElement("div"); seg.className = "seg";
-    var ts = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    var copy = document.createElement("button"); copy.className = "copy";
-    copy.textContent = "复制";
-    copy.onclick = function () { copyText(dst || src, copy); };
-    seg.innerHTML =
-      '<div class="meta"><span class="badge ' + (cfg.dir === "e2z" ? "en" : "zh") + '">' + d.srcTag + '</span>' +
-      '<span class="time">' + ts + '</span></div>' +
-      '<div class="src"></div>' +
-      '<div class="dst"></div>';
-    seg.querySelector(".src").textContent = src;
-    var dstEl = seg.querySelector(".dst");
-    if (dst) { dstEl.textContent = dst; } else { dstEl.textContent = "翻译失败：" + (errMsg || "未知错误"); dstEl.className += " failed"; }
-    seg.appendChild(copy);
-    list.prepend(seg);
-    while (list.children.length > 40) list.removeChild(list.lastChild);
-    // 记录到当前会话
-    currentSession.segments.unshift({ time: ts, src: src, dst: dst || "", dir: cfg.dir });
-    // 触发实时洞察
-    updateInsight(src);
-  }
-  function copyText(text, btn) {
-    function done(ok) {
-      if (btn) { btn.textContent = ok ? "已复制" : "复制"; if (ok) setTimeout(function () { btn.textContent = "复制"; }, 1400); }
-      if (!ok) setStatus("复制失败（需要 https 环境）", "err");
-    }
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { legacyCopy(text, done); });
-    } else { legacyCopy(text, done); }
-  }
-  function legacyCopy(text, done) {
-    try { var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); var ok = document.execCommand("copy"); document.body.removeChild(ta); done(ok); } catch (e) { done(false); }
-  }
-
-  /* ================= GXYKIT 产品知识库 ================= */
-  var GXYKIT_PRODUCTS = [
-    { model: "GC01", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","3 USB","LED"], sellingPoints: ["120W","3 USB Ports","LED Lights"] },
-    { model: "GC05", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
-    { model: "GC13", name: "多设备扩展车充", category: "Car Charger", keywords: ["PD","45W","retractable"], sellingPoints: ["PD Fast Charge","Retractable"] },
-    { model: "GC15", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable","LED"], sellingPoints: ["65W","Retractable","LED Lights"] },
-    { model: "GC16", name: "Car Charger", category: "Car Charger", keywords: ["120W","retractable"], sellingPoints: ["120W","Retractable"] },
-    { model: "GC18", name: "Car Charger", category: "Car Charger", keywords: ["120W","retractable","LED"], sellingPoints: ["120W","Retractable","LED Lights"] },
-    { model: "GC21", name: "Car Charger", category: "Car Charger", keywords: ["83W","retractable"], sellingPoints: ["83W","Retractable"] },
-    { model: "GC21-Z", name: "Car Charger", category: "Car Charger", keywords: ["BT 5.4","83W","retractable"], sellingPoints: ["BT 5.4","83W","Retractable"] },
-    { model: "GC24", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable"], sellingPoints: ["65W","Retractable"] },
-    { model: "GC24-Boost", name: "Car Charger", category: "Car Charger", keywords: ["PD","boost","retractable"], sellingPoints: ["PD Fast Charge","Retractable"] },
-    { model: "GC25", name: "伸缩线车充", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GC03", name: "Car Charger", category: "Car Charger", keywords: ["PD","LED"], sellingPoints: ["PD Fast Charge","LED Lights"] },
-    { model: "GC03C", name: "Car Charger", category: "Car Charger", keywords: ["54W","3 USB","LED"], sellingPoints: ["54W","3 USB Ports","LED Lights"] },
-    { model: "GC03S", name: "Car Charger", category: "Car Charger", keywords: ["PD","LED"], sellingPoints: ["PD Fast Charge","LED Lights"] },
-    { model: "GC06", name: "Car Charger", category: "Car Charger", keywords: ["120W","3 USB"], sellingPoints: ["120W","3 USB Ports"] },
-    { model: "GC06-35W", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED","35W"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
-    { model: "GC06-PD65W", name: "Car Charger", category: "Car Charger", keywords: ["QC3.0","3 USB","LED","65W"], sellingPoints: ["QC3.0","3 USB Ports","LED Lights"] },
-    { model: "GC11", name: "Car Charger", category: "Car Charger", keywords: ["car charger"], sellingPoints: [] },
-    { model: "GC11S", name: "Car Charger", category: "Car Charger", keywords: ["120W","3 USB","LED"], sellingPoints: ["120W","3 USB Ports","LED Lights"] },
-    { model: "GC11-Pro", name: "Car Charger", category: "Car Charger", keywords: ["120W","dual USB"], sellingPoints: ["120W","Dual USB"] },
-    { model: "GC07", name: "Car Charger", category: "Car Charger", keywords: ["61W","dual USB"], sellingPoints: ["61W","Dual USB"] },
-    { model: "ZNB02", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","dual USB"], sellingPoints: ["120W","Dual USB"] },
-    { model: "ZNB02-LED", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","dual USB","LED"], sellingPoints: ["120W","Dual USB","LED Lights"] },
-    { model: "ZNB03S", name: "Smart USB Car Charger", category: "Car Charger", keywords: ["120W","dual USB"], sellingPoints: ["120W","Dual USB"] },
-    { model: "GC08 PD+L", name: "Retractable Cable Car Charger", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GC08 PD+C", name: "Retractable Cable Car Charger", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GC08 2PD", name: "Retractable Cable Car Charger", category: "Car Charger", keywords: ["PD","retractable","LED"], sellingPoints: ["PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GC08-FM(PD+L)", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD","FM","retractable","LED"], sellingPoints: ["BT 5.4","PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GC08-FM(PD+C)", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD","FM","retractable","LED"], sellingPoints: ["BT 5.4","PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GC08-FM(2PD)", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD","FM","retractable","LED"], sellingPoints: ["BT 5.4","PD Fast Charge","Retractable","LED Lights"] },
-    { model: "GZ11", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","retractable","LED"], sellingPoints: ["BT 5.3","Retractable","LED Lights"] },
-    { model: "GZ11-C", name: "Car Charger", category: "Car Charger", keywords: ["65W","retractable","LED"], sellingPoints: ["65W","Retractable","LED Lights"] },
-    { model: "GZ07", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","FM","charger","display","LED"], sellingPoints: ["BT 5.3"] },
-    { model: "GZ08-DualPD35W", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","PD","35W","FM","LED"], sellingPoints: ["BT 5.3","PD Fast Charge","LED Lights"] },
-    { model: "GZ01", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
-    { model: "GZ03", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB"], sellingPoints: ["BT 5.3","Dual USB"] },
-    { model: "GZ03-PD", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD"], sellingPoints: ["BT 5.4","PD Fast Charge"] },
-    { model: "G13", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","charger","dual USB"], sellingPoints: ["BT 5.3","Charger 5V/2.4","Dual USB"] },
-    { model: "G15", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","charger","dual USB"], sellingPoints: ["BT 5.3","Charger 5V/3.5","Dual USB"] },
-    { model: "G24", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","3 USB","screen"], sellingPoints: ["BT 5.3","QC3.0","3 USB Ports","2.0 in Screen"] },
-    { model: "G32", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","charger"], sellingPoints: ["BT 5.4","Charger 5V/3.1"] },
-    { model: "G32-PD", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","PD"], sellingPoints: ["BT 5.4","PD Fast Charge"] },
-    { model: "G32-QC", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","QC3.0"], sellingPoints: ["BT 5.4","QC3.0"] },
-    { model: "G32-Uni", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","charger","dual USB"], sellingPoints: ["BT 5.3","Charger 5V/3.1","Dual USB"] },
-    { model: "G45", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","3 USB","screen"], sellingPoints: ["BT 5.3","QC3.0","3 USB Ports","0.96 in Screen"] },
-    { model: "G45-C", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","QC3.0","3 USB","screen"], sellingPoints: ["BT 5.4","QC3.0","3 USB Ports","0.96 in Screen"] },
-    { model: "G47", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","LED"], sellingPoints: ["BT 5.4","LED Lights"] },
-    { model: "G47-Knob", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.4","LED","knob"], sellingPoints: ["BT 5.4","LED Lights"] },
-    { model: "G47-Uni", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
-    { model: "G52", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","USB-C"], sellingPoints: ["BT 5.3","QC3.0","USB-C"] },
-    { model: "G57", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","USB-C"], sellingPoints: ["BT 5.3","QC3.0","USB-C"] },
-    { model: "G61", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","QC3.0","LED"], sellingPoints: ["BT 5.3","QC3.0","LED Lights"] },
-    { model: "G67", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
-    { model: "G68", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB","LED"], sellingPoints: ["BT 5.3","Dual USB","LED Lights"] },
-    { model: "M7", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","3 USB"], sellingPoints: ["BT 5.3","3 USB Ports"] },
-    { model: "AP06", name: "Car MP3 Player", category: "Car MP3", keywords: ["BT 5.3","dual USB"], sellingPoints: ["BT 5.3","Dual USB"] },
-    { model: "G21", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.3","3 USB","FM"], sellingPoints: ["BT 5.3","3 USB Ports"] },
-    { model: "G63", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.3","FM"], sellingPoints: ["BT 5.3"] },
-    { model: "G63-Remote", name: "Car FM Transmitter", category: "FM Transmitter", keywords: ["BT 5.0","PD","FM","remote"], sellingPoints: ["BT 5.0","PD Fast Charge"] },
-    { model: "GR01", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4","LED"], sellingPoints: ["BT 5.4","LED Lights"] },
-    { model: "GR03", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
-    { model: "GR05", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.3"], sellingPoints: ["BT 5.3"] },
-    { model: "GR05-Wired-JL", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4","USB-C"], sellingPoints: ["BT 5.4","USB-C"] },
-    { model: "GR07", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4","LED"], sellingPoints: ["BT 5.4","LED Lights"] },
-    { model: "GR08", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 6.0"], sellingPoints: ["BT 6.0"] },
-    { model: "GR11", name: "BT Audio RX/TX 2-in-1", category: "Bluetooth TX/RX", keywords: ["BT 5.4","USB-C"], sellingPoints: ["BT 5.4","USB-C"] },
-    { model: "GR13", name: "Bluetooth Receiver", category: "Bluetooth RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
-    { model: "GR15", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
-    { model: "GR16", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
-    { model: "GR18", name: "Bluetooth Transceiver", category: "Bluetooth TX/RX", keywords: ["BT 5.4"], sellingPoints: ["BT 5.4"] },
-    { model: "GR31", name: "蓝牙接收器", category: "Bluetooth RX", keywords: ["BT 5.3"], sellingPoints: ["BT 5.3"] }
-  ];
-
-  /* ================= 本地关键词提取 ================= */
-  var INSIGHT_SIGNALS = {
-    price: { words: ["price","cost","expensive","cheap","budget"," cheaper","贵","便宜","价格","成本","多少钱","budget","报价","quote"], label: "价格敏感" },
-    delivery: { words: ["delivery","lead time","urgent","stock","现货","交期","库存","多久","急","urgent","leadtime","delivery time"], label: "交期关注" },
-    sample: { words: ["sample","test","trial","pilot","送样","样品","测试","试用","试产","pilot run"], label: "需送样" },
-    volume: { words: ["volume","quantity","MOQ","bulk","mass","批量","数量","起订量","1K","5K","10K","大量"], label: "批量需求" },
-    quality: { words: ["quality","reliability","certification","CE","FCC","RoHS","质量","可靠性","认证","品质","fail","defect"], label: "质量关注" },
-    competitor: { words: ["competitor","rival","xxx","brand","compare","竞品","对手","品牌","xx牌","对比","替代"], label: "竞品对比" },
-    replacement: { words: ["replacement","alternative","substitute","替代","替换","代替","换料","pin-to-pin"], label: "替代需求" }
   };
+  nativeRec.onerror = e => { if (e.error !== 'no-speech') showToast('识别错误: ' + e.error); };
+  nativeRec.onend = () => { if (isRecording) setTimeout(() => startNative(), 200); };
+  nativeRec.start();
+}
 
-  var sessionKeywords = [], sessionProducts = [], sessionSignals = [];
-  function resetInsight() {
-    sessionKeywords = []; sessionProducts = []; sessionSignals = [];
-    $("insightZone").classList.remove("show");
-    $("insightBody").innerHTML = "";
-    $("insightStatus").textContent = "等待中…";
+function stopNative() {
+  if (nativeRec) { try { nativeRec.stop(); } catch(e) {} nativeRec = null; }
+}
+
+// ================= 翻译 =================
+function translateText(text) {
+  const from = cfg.dir === 'z2e' ? 'zh' : 'en';
+  const to = cfg.dir === 'z2e' ? 'en' : 'zh';
+  return fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`)
+    .then(r => r.json())
+    .then(j => {
+      if (j.responseStatus === 200) return j.responseData.translatedText;
+      throw new Error(j.responseDetails || '翻译失败');
+    })
+    .catch(() => text);
+}
+
+// ================= 文本分析 =================
+const SIGNALS = {
+  '价格': ['价格', 'price', 'cost', 'cheap', 'expensive', 'discount', ' cheaper', 'costly'],
+  '数量': ['数量', 'quantity', 'qty', 'how many', 'pieces', 'units', 'batch', 'order'],
+  '交期': ['交期', 'delivery', 'lead time', 'when', 'ship', 'shipping', 'arrive'],
+  '样品': ['样品', 'sample', '测试', 'test', '试用'],
+  '质量': ['质量', 'quality', '认证', 'certificate', 'CE', 'FCC', 'ROHS'],
+  '竞品': ['竞品', 'competitor', 'other brand', 'compare', '对比']
+};
+
+function analyzeText(text) {
+  const lower = text.toLowerCase();
+  for (const [signal, keywords] of Object.entries(SIGNALS)) {
+    if (keywords.some(k => lower.includes(k)) && !insightTags.includes(signal)) {
+      insightTags.push(signal);
+    }
   }
-
-  function extractKeywords(text) {
-    var lower = text.toLowerCase();
-    var found = [];
-    for (var key in INSIGHT_SIGNALS) {
-      var sig = INSIGHT_SIGNALS[key];
-      for (var i = 0; i < sig.words.length; i++) {
-        if (lower.indexOf(sig.words[i].toLowerCase()) !== -1) { found.push(sig.label); break; }
+  // Product matching
+  for (const product of GXYKIT_PRODUCTS) {
+    if (product.keywords.some(k => lower.includes(k.toLowerCase()))) {
+      if (!matchedProducts.find(p => p.model === product.model)) {
+        matchedProducts.push(product);
       }
     }
-    return found;
   }
+  updateInsightUI();
+}
 
-  function matchProducts(text) {
-    var lower = text.toLowerCase();
-    var scores = [];
-    for (var i = 0; i < GXYKIT_PRODUCTS.length; i++) {
-      var p = GXYKIT_PRODUCTS[i];
-      var score = 0;
-      for (var j = 0; j < p.keywords.length; j++) {
-        if (lower.indexOf(p.keywords[j].toLowerCase()) !== -1) score++;
-      }
-      if (score > 0) scores.push({ model: p.model, name: p.name, score: score, sellingPoints: p.sellingPoints });
-    }
-    scores.sort(function (a, b) { return b.score - a.score; });
-    return scores.slice(0, 3);
+function updateInsightUI() {
+  const zone = document.getElementById('insightZone');
+  const tagsEl = document.getElementById('insightTags');
+  if (!insightTags.length && !matchedProducts.length) { zone.style.display = 'none'; return; }
+  zone.style.display = 'block';
+  let html = '';
+  if (insightTags.length) {
+    html += insightTags.map(t => `<span class="tag hot">${t}</span>`).join('');
   }
-
-  function updateInsight(text) {
-    if (!text) return;
-    var kws = extractKeywords(text);
-    for (var i = 0; i < kws.length; i++) { if (sessionSignals.indexOf(kws[i]) === -1) sessionSignals.push(kws[i]); }
-    var prods = matchProducts(text);
-    for (var i = 0; i < prods.length; i++) {
-      var found = false;
-      for (var j = 0; j < sessionProducts.length; j++) { if (sessionProducts[j].model === prods[i].model) { found = true; break; } }
-      if (!found) sessionProducts.push(prods[i]);
-    }
-    if (sessionSignals.length || sessionProducts.length) {
-      $("insightZone").classList.add("show");
-      $("insightStatus").textContent = "已更新";
-    }
-    renderInsight();
-    // 如果有 API Key，送大模型做深度分析
-    if (cfg.llmKey) callLLMInsight(text);
+  if (matchedProducts.length) {
+    html += matchedProducts.slice(0, 3).map(p => `<span class="tag product">${p.model}</span>`).join('');
   }
+  tagsEl.innerHTML = html;
+}
 
-  function renderInsight() {
-    var html = "";
-    if (sessionSignals.length) {
-      html += '<div class="insight-card"><div class="ic-title">客户信号</div><div class="ic-tags">';
-      for (var i = 0; i < sessionSignals.length; i++) {
-        html += '<span class="ic-tag ' + (i < 2 ? 'hot' : '') + '">' + sessionSignals[i] + '</span>';
-      }
-      html += '</div></div>';
-    }
-    if (sessionProducts.length) {
-      html += '<div class="insight-card"><div class="ic-title">推荐产品</div><div class="ic-products">';
-      for (var i = 0; i < Math.min(sessionProducts.length, 3); i++) {
-        var p = sessionProducts[i];
-        html += '<div class="ic-product" onclick="alert(\'型号: ' + p.model + '\\n卖点: ' + (p.sellingPoints.join(", ") || "暂无") + '\')">' +
-          '<span class="p-model">' + p.model + '</span><span class="p-desc">' + p.name + ' · ' + (p.sellingPoints.slice(0,2).join(" · ") || "") + '</span></div>';
-      }
-      html += '</div></div>';
-    }
-    $("insightBody").innerHTML = html || '<div style="font-size:12px;color:var(--text-dim);">暂未识别到明确信号，继续对话即可自动提取</div>';
-  }
+function generateInsight() {
+  if (!currentSession || !currentSession.segments.length) return;
+  const signals = [...new Set(insightTags)];
+  const products = matchedProducts.slice(0, 3);
+  currentSession.signals = signals;
+  currentSession.products = products;
+  updateInsightUI();
+}
 
-  /* ================= 大模型深度分析（可选） ================= */
-  var llmQueue = [], llmProcessing = false;
-  function callLLMInsight(text) {
-    llmQueue.push(text);
-    if (!llmProcessing) processLLMQueue();
-  }
-  function processLLMQueue() {
-    if (!llmQueue.length || !cfg.llmKey) { llmProcessing = false; return; }
-    llmProcessing = true;
-    var text = llmQueue.join("\n"); llmQueue = [];
-    // 使用千帆/文心免费额度（简化调用，实际需要根据具体平台调整）
-    var prompt = "你是电子元器件销售助手。根据以下客户对话内容，提取：1)客户核心诉求 2)关注的产品特性 3)价格敏感度 4)下一步跟进建议。对话：" + text;
-    fetch("https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions?access_token=" + cfg.llmKey, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [{ role: "user", content: prompt }], temperature: 0.7 })
-    }).then(function(r){ return r.json(); }).then(function(j){
-      if (j.result) {
-        var html = '<div class="insight-card"><div class="ic-title">智能分析</div><div class="ic-hints">' + j.result.replace(/\n/g, "<br>") + '</div></div>';
-        $("insightBody").insertAdjacentHTML("beforeend", html);
-      }
-      llmProcessing = false; processLLMQueue();
-    }).catch(function(){ llmProcessing = false; });
-  }
+// ================= 保存 =================
+function saveConversation() {
+  if (!currentSession || !currentSession.segments.length) { showToast('没有可保存的内容'); return; }
+  currentSession.endTime = new Date().toISOString();
+  const conversations = DB.getConversations();
+  conversations.unshift(currentSession);
+  DB.saveConversations(conversations);
+  showToast('已保存到客户档案');
+  document.getElementById('saveZone').style.display = 'none';
+  // Reset
+  currentSession = null;
+  insightTags = []; matchedProducts = [];
+  document.getElementById('srcText').textContent = '等待语音输入...';
+  document.getElementById('srcText').classList.add('placeholder');
+  document.getElementById('dstText').textContent = '';
+  document.getElementById('insightZone').style.display = 'none';
+}
 
-  /* ================= 方向切换 ================= */
-  function applyDir(mode) {
-    cfg.dir = mode; saveCfg();
-    var d = dirInfo(mode);
-    document.querySelectorAll(".dir-card[data-dir]").forEach(function (el) { el.classList.toggle("sel", el.getAttribute("data-dir") === mode); });
-    document.querySelectorAll(".dir-card[data-dir2]").forEach(function (el) { el.classList.toggle("sel", el.getAttribute("data-dir2") === mode); });
-    $("micSub").textContent = listening ? "正在实时听译，点击停止" : d.micSub;
-    $("liveTagSrc").textContent = d.liveSrc;
-    $("liveTagDst").textContent = d.liveDst;
-    if (listening) { stopListening(false); setTimeout(startListening, 150); }
-  }
+// ================= 设置 =================
+function showSettings() {
+  document.getElementById('settingsMask').classList.add('show');
+  document.getElementById('settingsSheet').classList.add('show');
+}
 
-  /* ================= 设置面板 ================= */
-  function openSheet() { $("sheet").classList.add("show"); $("mask").classList.add("show"); }
-  function closeSheet() { $("sheet").classList.remove("show"); $("mask").classList.remove("show"); }
-  function refreshSheetSel() {
-    $("setCardZ2E").classList.toggle("sel", cfg.dir === "z2e");
-    $("setCardE2Z").classList.toggle("sel", cfg.dir === "e2z");
-    $("engineSel").value = cfg.engine;
-    $("llmKey").value = cfg.llmKey || "";
-  }
-  function saveAndClose() { cfg.engine = $("engineSel").value; cfg.llmKey = $("llmKey").value.trim(); saveCfg(); closeSheet(); }
+function hideSettings() {
+  document.getElementById('settingsMask').classList.remove('show');
+  document.getElementById('settingsSheet').classList.remove('show');
+}
 
-  /* ================= 存储 ================= */
-  function saveCfg() { try { localStorage.setItem("e2c_cfg", JSON.stringify(cfg)); } catch(e){} }
-  function loadCfg() { try { var s = localStorage.getItem("e2c_cfg"); if (s) cfg = JSON.parse(s); } catch(e){} }
+function saveSettings() {
+  cfg.engine = document.getElementById('engineSel').value;
+  cfg.llmKey = document.getElementById('llmKey').value.trim();
+  DB.saveSettings(cfg);
+  hideSettings();
+  showToast('设置已保存');
+}
 
-  /* ================= PWA ================= */
-  function setupPWA() {
-    var icon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%233d7bff'/%3E%3Ctext x='50' y='65' font-size='48' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%23fff'%3E译%3C/text%3E%3C/svg%3E";
-    var manifest = { name: "实时听译 - 中英对话翻译", short_name: "实时听译", description: "手机麦克风实时听取对话并中英互译", start_url: location.href.split("#")[0], display: "standalone", background_color: "#F5F5F7", theme_color: "#F5F5F7", lang: "zh-CN", icons: [{ src: icon, sizes: "192x192", type: "image/png", purpose: "any" }] };
-    var m = document.createElement("link"); m.rel = "manifest"; m.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(manifest)); document.head.appendChild(m);
-  }
+// ================= 工具 =================
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
 
-  /* ================= 事件绑定 ================= */
-  function init() {
-    loadCfg(); applyDir(cfg.dir); compatCheck(); setupPWA();
-    $("micBtn").onclick = function () {
-      if (listening) { stopListening(true); setMicUI(false); return; }
-      setStatus("正在请求麦克风权限…", "");
-      startListening(); setMicUI(true);
-    };
-    document.querySelectorAll(".dir-card[data-dir]").forEach(function (el) { el.onclick = function () { applyDir(el.getAttribute("data-dir")); }; });
-    document.querySelectorAll(".dir-card[data-dir2]").forEach(function (el) { el.onclick = function () { applyDir(el.getAttribute("data-dir2")); refreshSheetSel(); }; });
-    $("openSettings").onclick = function () { refreshSheetSel(); openSheet(); };
-    $("mask").onclick = closeSheet;
-    $("saveBtn").onclick = saveAndClose;
-    $("clearBtn").onclick = function () { if (confirm("确定清空全部会话记录吗？")) { $("sessionList").innerHTML = '<div class="empty"><div class="big">🎙️</div>还没有记录，点麦克风开始吧</div>'; } };
+// Direction switch
+function switchDir(dir) {
+  cfg.dir = dir;
+  updateDirUI();
+  DB.saveSettings(cfg);
+}
 
-    function doTextTranslate() {
-      var input = $("textInput"); var text = input.value.trim(); if (!text) return;
-      var d = dirInfo(cfg.dir); var done = $("textDone");
-      done.classList.remove("show"); $("transResult").classList.add("loading"); $("transResult").textContent = "翻译中…";
-      translateText(text, d.myFrom, d.myTo)
-        .then(function (trans) { addSegment(text, trans, d); done.textContent = "译文：" + trans; done.classList.add("show"); $("transResult").classList.remove("loading"); $("transResult").textContent = trans; input.value = ""; })
-        .catch(function (err) { done.textContent = "翻译失败：" + err.message; done.classList.add("show"); $("transResult").classList.remove("loading"); $("transResult").textContent = "翻译失败"; });
-    }
-    $("textSend").onclick = doTextTranslate;
-    $("textInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); doTextTranslate(); } });
+document.getElementById('dirZ2E').onclick = () => switchDir('z2e');
+document.getElementById('dirE2Z').onclick = () => switchDir('e2z');
 
-    var note = $("httpxNote");
-    if (location.protocol === "https:") note.innerHTML = "📌 数据说明：语音识别与翻译均在设备浏览器中实时完成，不上传你的语音录音，仅将识别出的文字发送给翻译服务。";
-    else if (location.protocol === "file:") note.innerHTML = "📌 <b>重要：</b>以 file:// 直接打开时，iPhone Safari 限制麦克风访问。<br>推荐部署到任意 https 静态托管（如 GitHub Pages），手机访问网址即可使用。";
-    else note.innerHTML = "📌 当前为 http 访问。iOS 语音识别需要 https，建议部署到 https 地址后使用。";
-  }
-
-  window.addEventListener("DOMContentLoaded", init);
+// Init
+init();
 </script>
 </body>
 </html>

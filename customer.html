@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>E2C · 客户详情</title>
+<meta name="theme-color" content="#1D1D1F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root {
+    --bg: #000000;
+    --surface: #1C1C1E;
+    --surface-2: #2C2C2E;
+    --text: #FFFFFF;
+    --text-2: #8E8E93;
+    --text-3: #636366;
+    --accent: #FF3B30;
+    --accent-soft: rgba(255,59,48,0.15);
+    --blue: #0A84FF;
+    --green: #30D158;
+    --yellow: #FFD60A;
+    --line: rgba(255,255,255,0.08);
+    --radius: 16px;
+    --radius-sm: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 480px; margin: 0 auto; width: 100%; padding: var(--safe-top) 0 0; position: relative; min-height: 100vh; }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; position: sticky; top: 0; z-index: 10;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .back-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: var(--surface); color: var(--text-2); font-size: 18px;
+    display: grid; place-items: center; cursor: pointer; text-decoration: none;
+  }
+  .back-btn:active { transform: scale(0.92); }
+  .header h1 {
+    font-size: 17px; font-weight: 700; letter-spacing: -0.3px;
+    flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 0 8px;
+  }
+  .edit-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: var(--surface); color: var(--text-2); font-size: 15px;
+    display: grid; place-items: center; cursor: pointer;
+  }
+
+  /* Profile hero */
+  .profile {
+    padding: 20px 20px 12px; display: flex; align-items: center; gap: 14px;
+  }
+  .avatar {
+    width: 60px; height: 60px; border-radius: 18px; flex: none;
+    display: grid; place-items: center; font-size: 24px; font-weight: 800; color: #fff;
+  }
+  .profile-info { flex: 1; min-width: 0; }
+  .profile-name { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .profile-contact { font-size: 13px; color: var(--text-2); margin-top: 3px; }
+  .profile-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .action-btn {
+    padding: 7px 14px; border-radius: 10px; border: none;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .action-btn.primary { background: var(--accent); color: #fff; }
+  .action-btn.ghost { background: var(--surface-2); color: var(--text-2); }
+  .action-btn:active { transform: scale(0.95); }
+
+  .notes {
+    margin: 4px 20px 8px; padding: 12px 14px;
+    background: var(--surface); border-radius: var(--radius-sm);
+    font-size: 13px; color: var(--text-2); line-height: 1.5;
+    border-left: 3px solid var(--yellow);
+  }
+  .notes.empty { border-left-color: var(--text-3); color: var(--text-3); }
+
+  /* Stat row */
+  .stats {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    padding: 8px 20px 16px;
+  }
+  .stat {
+    background: var(--surface); border-radius: var(--radius-sm);
+    padding: 12px 8px; text-align: center;
+  }
+  .stat .num { font-size: 22px; font-weight: 800; color: var(--accent); }
+  .stat .label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  /* Section */
+  .section { padding: 8px 20px 12px; }
+  .section-title {
+    font-size: 13px; font-weight: 700; color: var(--text-2);
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+
+  /* Summary card */
+  .summary-card {
+    background: linear-gradient(135deg, var(--surface) 0%, #141416 100%);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 14px;
+    border: 1px solid var(--line);
+  }
+  .summary-card .key {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 5px 11px;
+    border-radius: 14px; background: var(--surface-2); color: var(--text-2);
+  }
+  .chip.hot { background: var(--accent-soft); color: var(--accent); }
+  .chip.product { background: rgba(10,132,255,0.15); color: var(--blue); }
+  .summary-item {
+    font-size: 13px; line-height: 1.6; color: var(--text-2);
+    padding: 8px 0; border-top: 1px solid var(--line);
+  }
+  .summary-item b { color: var(--text); font-weight: 600; }
+  .summary-loading { font-size: 13px; color: var(--text-3); text-align: center; padding: 16px; }
+
+  /* Timeline */
+  .conv-group {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 12px; border: 1px solid var(--line);
+  }
+  .conv-time {
+    font-size: 11px; color: var(--text-3); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .conv-time .dash { flex: 1; height: 1px; background: var(--line); }
+  .seg { margin-bottom: 10px; }
+  .seg:last-child { margin-bottom: 0; }
+  .seg-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; margin-bottom: 3px;
+  }
+  .seg-label.customer { color: var(--blue); }
+  .seg-label.me { color: var(--green); }
+  .seg-label.neutral { color: var(--text-3); }
+  .seg-src { font-size: 14px; font-weight: 600; line-height: 1.45; }
+  .seg-dst { font-size: 12.5px; color: var(--text-2); line-height: 1.45; margin-top: 2px; }
+
+  .empty-conv {
+    text-align: center; padding: 40px 30px; color: var(--text-3);
+    background: var(--surface); border-radius: var(--radius);
+  }
+  .empty-conv .big { font-size: 38px; margin-bottom: 8px; }
+
+  /* Follow-up */
+  .follow-item {
+    background: var(--surface); border-radius: var(--radius-sm);
+    padding: 12px 14px; margin-bottom: 8px;
+    border: 1px solid var(--line);
+  }
+  .follow-item .time { font-size: 11px; color: var(--text-3); }
+  .follow-item .text { font-size: 13px; margin-top: 4px; line-height: 1.5; color: var(--text-2); }
+
+  /* Tab Bar */
+  .tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 8px 0 calc(8px + var(--safe-bottom));
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line); z-index: 100;
+    max-width: 480px; margin: 0 auto;
+  }
+  .tab-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; padding: 4px 16px; cursor: pointer;
+    color: var(--text-3); text-decoration: none;
+    transition: color 0.2s; border: none; background: none;
+  }
+  .tab-item.active { color: var(--accent); }
+  .tab-item .icon { font-size: 22px; }
+  .tab-item .label { font-size: 10px; font-weight: 600; }
+
+  /* Floating record btn */
+  .record-fab {
+    position: fixed; right: 24px; bottom: calc(88px + var(--safe-bottom));
+    width: 60px; height: 60px; border-radius: 50%; border: none;
+    background: var(--accent); color: #fff; font-size: 24px;
+    display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 6px 24px rgba(255,59,48,0.4);
+    z-index: 90;
+  }
+  .record-fab:active { transform: scale(0.93); }
+  .record-fab span { font-size: 11px; margin-top: -2px; }
+
+  /* Modal */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    z-index: 200; backdrop-filter: blur(4px);
+  }
+  .modal-mask.show { opacity: 1; pointer-events: auto; }
+  .modal-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: var(--surface); border-radius: 24px 24px 0 0;
+    padding: 20px 20px calc(20px + var(--safe-bottom));
+    transform: translateY(105%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.25, 1);
+    z-index: 210; max-width: 480px; margin: 0 auto;
+    max-height: 85vh; overflow-y: auto;
+  }
+  .modal-sheet.show { transform: translateY(0); }
+  .modal-sheet h3 { font-size: 18px; margin-bottom: 16px; }
+  .input-group { margin-bottom: 14px; }
+  .input-group label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; font-weight: 600; }
+  .input-group input, .input-group textarea {
+    width: 100%; padding: 12px 14px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: var(--surface-2);
+    color: var(--text); font-size: 15px; outline: none;
+    font-family: inherit;
+  }
+  .input-group input:focus, .input-group textarea:focus { border-color: var(--accent); }
+  .input-group textarea { min-height: 80px; resize: vertical; }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn-row button { flex: 1; padding: 14px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-row .cancel { background: var(--surface-2); color: var(--text); }
+  .btn-row .confirm { background: var(--accent); color: #fff; }
+
+  .toast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--surface-2); color: var(--text); padding: 12px 24px;
+    border-radius: 12px; font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    z-index: 300; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <a class="back-btn" href="customers.html">‹</a>
+    <h1 id="headerName">客户详情</h1>
+    <button class="edit-btn" onclick="showEditModal()">✎</button>
+  </div>
+
+  <div class="profile">
+    <div class="avatar" id="avatar">?</div>
+    <div class="profile-info">
+      <div class="profile-name" id="profileName">-</div>
+      <div class="profile-contact" id="profileContact">-</div>
+      <div class="profile-actions">
+        <button class="action-btn primary" onclick="goRecord()">🎙️ 继续谈</button>
+        <button class="action-btn ghost" onclick="showFollowModal()">📌 记跟进</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes empty" id="notesBox">
+    <span class="notes-text">暂无备注</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="statConvs">0</div><div class="label">对话次数</div></div>
+    <div class="stat"><div class="num" id="statSegs">0</div><div class="label">条记录</div></div>
+    <div class="stat"><div class="num" id="statLead">0</div><div class="label">关注信号</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🧠 AI 总结归纳</div>
+    <div class="summary-card" id="summaryCard">
+      <div class="summary-loading" id="summaryLoading">正在分析对话...</div>
+      <div id="summaryContent" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">💬 对话记录</div>
+    <div id="convList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📌 跟进记录</div>
+    <div id="followList"></div>
+  </div>
+
+  <div style="height:120px"></div>
+
+  <button class="record-fab" onclick="goRecord()">🎙️<span>继续谈</span></button>
+</div>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <a class="tab-item" href="index.html">
+    <span class="icon">🎙️</span>
+    <span class="label">翻译</span>
+  </a>
+  <a class="tab-item active" href="customers.html">
+    <span class="icon">👥</span>
+    <span class="label">客户</span>
+  </a>
+</nav>
+
+<!-- Edit Modal -->
+<div class="modal-mask" id="editMask" onclick="hideEditModal()"></div>
+<div class="modal-sheet" id="editSheet">
+  <h3>编辑客户</h3>
+  <div class="input-group">
+    <label>公司名 / 客户名称 *</label>
+    <input type="text" id="editName">
+  </div>
+  <div class="input-group">
+    <label>联系人</label>
+    <input type="text" id="editContact">
+  </div>
+  <div class="input-group">
+    <label>备注</label>
+    <textarea id="editNotes"></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="cancel" onclick="hideEditModal()">取消</button>
+    <button class="confirm" onclick="saveEdit()">保存</button>
+  </div>
+</div>
+
+<!-- Follow Modal -->
+<div class="modal-mask" id="followMask" onclick="hideFollowModal()"></div>
+<div class="modal-sheet" id="followSheet">
+  <h3>记录跟进</h3>
+  <div class="input-group">
+    <label>跟进内容</label>
+    <textarea id="followText" placeholder="例：已发 GC05 报价单，客户说下周给答复；需跟进样品交期..."></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="cancel" onclick="hideFollowModal()">取消</button>
+    <button class="confirm" onclick="saveFollow()">保存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DB = {
+  getCustomers() {
+    try { return JSON.parse(localStorage.getItem('e2c_customers') || '[]'); }
+    catch(e) { return []; }
+  },
+  saveCustomers(list) {
+    localStorage.setItem('e2c_customers', JSON.stringify(list));
+  },
+  getConversations() {
+    try { return JSON.parse(localStorage.getItem('e2c_conversations') || '[]'); }
+    catch(e) { return []; }
+  },
+  saveConversations(list) {
+    localStorage.setItem('e2c_conversations', JSON.stringify(list));
+  },
+  generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
+};
+
+const AVATAR_COLORS = ['#FF3B30', '#FF9500', '#FFD60A', '#30D158', '#0A84FF', '#5E5CE6', '#FF375F', '#64D2FF'];
+let customer = null;
+let customerId = new URLSearchParams(location.search).get('id') || '';
+let conversations = [];
+
+function init() {
+  if (!customerId) { showToast('缺少客户参数'); setTimeout(() => location.href = 'customers.html', 800); return; }
+  const customers = DB.getCustomers();
+  customer = customers.find(c => c.id === customerId);
+  if (!customer) { showToast('客户不存在'); setTimeout(() => location.href = 'customers.html', 800); return; }
+  conversations = DB.getConversations().filter(c => c.customerId === customerId);
+  render();
+}
+
+function render() {
+  document.getElementById('headerName').textContent = customer.name;
+  document.getElementById('profileName').textContent = customer.name;
+  document.getElementById('profileContact').textContent = customer.contact || '未填联系人';
+  const idx = DB.getCustomers().findIndex(c => c.id === customerId);
+  document.getElementById('avatar').textContent = customer.name.charAt(0).toUpperCase();
+  document.getElementById('avatar').style.background = AVATAR_COLORS[Math.max(0, idx) % AVATAR_COLORS.length];
+
+  const notesBox = document.getElementById('notesBox');
+  if (customer.notes) {
+    notesBox.classList.remove('empty');
+    notesBox.textContent = '📝 ' + customer.notes;
+  } else {
+    notesBox.classList.add('empty');
+    notesBox.innerHTML = '<span class="notes-text">暂无备注</span>';
+  }
+
+  const segs = conversations.reduce((a, c) => a + (c.segments ? c.segments.length : 0), 0);
+  const signals = new Set();
+  conversations.forEach(c => (c.signals || []).forEach(s => signals.add(s)));
+  document.getElementById('statConvs').textContent = conversations.length;
+  document.getElementById('statSegs').textContent = segs;
+  document.getElementById('statLead').textContent = signals.size;
+
+  renderSummary();
+  renderConvList();
+  renderFollowList();
+}
+
+// ================= AI 总结 =================
+function renderSummary() {
+  const card = document.getElementById('summaryCard');
+  const loading = document.getElementById('summaryLoading');
+  const content = document.getElementById('summaryContent');
+
+  if (!conversations.length) {
+    loading.textContent = '暂无对话，去和客户聊聊吧';
+    return;
+  }
+
+  const allText = conversations
+    .flatMap(c => (c.segments || []).map(s => s.src))
+    .join(' ');
+  if (!allText.trim()) { loading.textContent = '暂无有效对话内容'; return; }
+
+  loading.style.display = 'block';
+  content.style.display = 'none';
+  loading.textContent = '正在分析对话...';
+
+  // 本地规则总结（无 LLM Key 时）
+  setTimeout(() => {
+    const summary = buildLocalSummary();
+    loading.style.display = 'none';
+    content.style.display = 'block';
+    content.innerHTML = summary;
+  }, 300);
+}
+
+function buildLocalSummary() {
+  let html = '';
+  const allSegs = conversations.flatMap(c => (c.segments || []).map(s => ({ ...s, time: c.endTime || c.startTime })));
+  const customerSegs = allSegs.filter(s => s.speaker === 'customer');
+  const mySegs = allSegs.filter(s => s.speaker === 'me');
+  const signals = [...new Set(conversations.flatMap(c => c.signals || []))];
+  const products = [...new Set(conversations.flatMap(c => (c.products || []).map(p => p.model)))];
+
+  // 关键词信号
+  const signalMap = {
+    '价格': [], '数量': [], '交期': [], '样品': [], '质量': [], '竞品': []
+  };
+  const allText = customerSegs.map(s => s.src).join(' ');
+  const SIGNALS = {
+    '价格': ['价格', 'price', 'cost', 'cheap', 'expensive', 'discount', 'budget'],
+    '数量': ['数量', 'quantity', 'qty', 'how many', 'pieces', 'units', '批量', 'order'],
+    '交期': ['交期', 'delivery', 'lead time', 'ship', 'shipping'],
+    '样品': ['样品', 'sample', '测试', 'test'],
+    '质量': ['质量', 'quality', '认证', 'certificate', 'CE', 'FCC', 'ROHS'],
+    '竞品': ['竞品', 'competitor', 'other brand', 'compare', '对比']
+  };
+  for (const [key, kws] of Object.entries(SIGNALS)) {
+    signalMap[key] = customerSegs.filter(s => kws.some(k => s.src.toLowerCase().includes(k.toLowerCase()))).slice(0, 3);
+  }
+
+  // 客户关注点
+  const hasAny = Object.values(signalMap).some(a => a.length > 0);
+  if (hasAny) {
+    html += '<div class="summary-item">🎯 <b>客户关注重点：</b><br>';
+    const parts = [];
+    for (const [key, segs2] of Object.entries(signalMap)) {
+      if (segs2.length) parts.push(key);
+    }
+    html += parts.join('、');
+    html += '</div>';
+  }
+
+  // 客户表述归纳
+  if (customerSegs.length) {
+    const brief = customerSegs
+      .map(s => s.src)
+      .slice(-6)
+      .map(t => t.trim())
+      .filter(t => t.length > 2)
+      .join('；');
+    if (brief) html += `<div class="summary-item">🗣️ <b>客户主要表述：</b><br>${escapeHtml(brief.slice(0, 200))}${brief.length > 200 ? '…' : ''}</div>`;
+  }
+
+  // 建议产品
+  if (products.length) {
+    html += `<div class="key" style="margin-top:8px">${products.map(p => `<span class="chip product">${p}</span>`).join('')}</div>`;
+  }
+
+  // 跟进建议
+  const advice = [];
+  if (signalMap['价格'].length) advice.push('已谈价格：准备竞品对比与阶梯报价');
+  if (signalMap['样品'].length) advice.push('客户要样品：尽快安排寄样并登记物流单号');
+  if (signalMap['交期'].length) advice.push('客户关心交期：回复产能与现货情况');
+  if (signalMap['数量'].length) advice.push('涉及数量：确认 MOQ 与阶梯价');
+  if (signalMap['质量'].length) advice.push('关注质量/认证：提供证书文件');
+  if (signalMap['竞品'].length) advice.push('客户在对比竞品：准备差异化卖点话术');
+  if (advice.length) {
+    html += '<div class="summary-item">✅ <b>跟进建议：</b><br>' + advice.map(a => '· ' + a).join('<br>') + '</div>';
+  }
+
+  // 未分类的对话主题词提取（简单高频词）
+  const words = extractHotWords(customerSegs.map(s => s.src));
+  if (words.length) {
+    html += '<div class="key" style="margin-top:8px">' + words.map(w => `<span class="chip hot">${w}</span>`).join('') + '</div>';
+  }
+
+  if (!html) html = '<div class="summary-item">已记录 ' + allSegs.length + ' 条对话，继续沟通积累更多信息后可生成更全面总结</div>';
+
+  return html;
+}
+
+function extractHotWords(texts) {
+  const stop = new Set(['这个', '那个', '我们', '你们', '他们', '一个', '可以', '需要', '什么', '怎么', '客户', '产品', '这个的', '的', '了', '和', '还有', '那个', '是', '在', '有', '就', '要', '吗', '吧', '呢', '啊', 'the', 'is', 'are', 'we', 'you', 'they', 'for', 'and', 'with']);
+  const freq = {};
+  texts.forEach(t => {
+    const words = t.toLowerCase().match(/[\u4e00-\u9fa5]{2,4}|[a-z]{3,}/g) || [];
+    words.forEach(w => {
+      if (!stop.has(w)) freq[w] = (freq[w] || 0) + 1;
+    });
+  });
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([w]) => w);
+}
+
+// ================= 对话时间线 =================
+function renderConvList() {
+  const list = document.getElementById('convList');
+  if (!conversations.length) {
+    list.innerHTML = '<div class="empty-conv"><div class="big">🎙️</div>还没有对话记录<br>点击右下角按钮开始与客户沟通</div>';
+    return;
+  }
+  list.innerHTML = conversations.map(c => {
+    const segs = (c.segments || []).map(s => `
+      <div class="seg">
+        <div class="seg-label ${s.speaker || 'neutral'}">${s.speaker === 'customer' ? '🧑‍💼 客户' : s.speaker === 'me' ? '🙋 我' : '💬 记录'}</div>
+        <div class="seg-src">${escapeHtml(s.src)}</div>
+        ${s.dst ? `<div class="seg-dst">${escapeHtml(s.dst)}</div>` : ''}
+      </div>`).join('');
+    const time = formatFull(c.endTime || c.startTime);
+    const signals = (c.signals || []).length ? `<span class="chip hot" style="font-size:10px;padding:3px 8px;border-radius:10px">${(c.signals || []).join(' ')}</span>` : '';
+    const prods = (c.products || []).length ? `<span class="chip product" style="font-size:10px;padding:3px 8px;border-radius:10px">${(c.products || []).map(p => p.model).join(' ')}</span>` : '';
+    return `
+      <div class="conv-group">
+        <div class="conv-time">
+          <span>${time}</span><span class="dash"></span><span>${segs.length} 条</span>
+          ${signals}${prods}
+        </div>
+        ${segs}
+      </div>`;
+  }).join('');
+}
+
+// ================= 跟进记录 =================
+function renderFollowList() {
+  const list = document.getElementById('followList');
+  const follows = (customer.follows || []).slice().sort((a, b) => new Date(b.time) - new Date(a.time));
+  if (!follows.length) {
+    list.innerHTML = '<div class="empty-conv"><div class="big">📌</div>暂无跟进记录</div>';
+    return;
+  }
+  list.innerHTML = follows.map(f => `
+    <div class="follow-item">
+      <div class="time">${formatFull(f.time)}</div>
+      <div class="text">${escapeHtml(f.text)}</div>
+    </div>`).join('');
+}
+
+// ================= 操作 =================
+function goRecord() {
+  sessionStorage.setItem('e2c_active_customer', customerId);
+  location.href = 'index.html';
+}
+
+function showEditModal() {
+  document.getElementById('editName').value = customer.name || '';
+  document.getElementById('editContact').value = customer.contact || '';
+  document.getElementById('editNotes').value = customer.notes || '';
+  document.getElementById('editMask').classList.add('show');
+  document.getElementById('editSheet').classList.add('show');
+}
+
+function hideEditModal() {
+  document.getElementById('editMask').classList.remove('show');
+  document.getElementById('editSheet').classList.remove('show');
+}
+
+function saveEdit() {
+  const name = document.getElementById('editName').value.trim();
+  if (!name) { showToast('请输入名称'); return; }
+  customer.name = name;
+  customer.contact = document.getElementById('editContact').value.trim();
+  customer.notes = document.getElementById('editNotes').value.trim();
+  const customers = DB.getCustomers();
+  const idx = customers.findIndex(c => c.id === customerId);
+  if (idx >= 0) customers[idx] = customer;
+  DB.saveCustomers(customers);
+  hideEditModal();
+  render();
+  showToast('已保存');
+}
+
+function showFollowModal() {
+  document.getElementById('followMask').classList.add('show');
+  document.getElementById('followSheet').classList.add('show');
+  setTimeout(() => document.getElementById('followText').focus(), 350);
+}
+
+function hideFollowModal() {
+  document.getElementById('followMask').classList.remove('show');
+  document.getElementById('followSheet').classList.remove('show');
+}
+
+function saveFollow() {
+  const text = document.getElementById('followText').value.trim();
+  if (!text) { showToast('请输入跟进内容'); return; }
+  customer.follows = customer.follows || [];
+  customer.follows.push({ id: DB.generateId(), text, time: new Date().toISOString() });
+  const customers = DB.getCustomers();
+  const idx = customers.findIndex(c => c.id === customerId);
+  if (idx >= 0) customers[idx] = customer;
+  DB.saveCustomers(customers);
+  hideFollowModal();
+  document.getElementById('followText').value = '';
+  render();
+  showToast('跟进已记录');
+}
+
+// ================= 工具 =================
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatFull(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const date = d.toDateString() === now.toDateString() ? '今天' : d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+    return date + ' ' + d.toTimeString().slice(0, 5);
+  } catch(e) { return ''; }
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+init();
+</script>
+</body>
+</html>
