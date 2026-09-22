@@ -307,7 +307,7 @@
     <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
       <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
     </button>
-    <div class="mic-hint" id="micHint">按住说话</div>
+    <div class="mic-hint" id="micHint">点击说话</div>
   </div>
 
   <div class="speaker-bar">
@@ -504,7 +504,7 @@ function updateCustomerBar() {
   } else {
     avatar.textContent = '+';
     name.textContent = '选择客户';
-    hint.textContent = '录音将关联到此客户档案';
+    hint.textContent = '未选择 · 结束时可关联';
     bar.style.borderColor = 'transparent';
   }
 }
@@ -552,9 +552,9 @@ function createCustomer() {
   sessionStorage.setItem('e2c_active_customer', customer.id);
   updateCustomerBar();
   hideCustomerModal();
-  showToast('已创建并关联客户');
   document.getElementById('newCustomerName').value = '';
   document.getElementById('newCustomerContact').value = '';
+  saveCurrentSession();
 }
 
 function selectCustomer(id) {
@@ -564,7 +564,7 @@ function selectCustomer(id) {
     sessionStorage.setItem('e2c_active_customer', id);
     updateCustomerBar();
     hideCustomerModal();
-    showToast('已关联客户: ' + currentCustomer.name);
+    saveCurrentSession();
   }
 }
 
@@ -575,11 +575,6 @@ function toggleRecording() {
 }
 
 function startRecording() {
-  if (!currentCustomer) {
-    showToast('请先选择或创建客户');
-    showCustomerModal();
-    return;
-  }
   isRecording = true;
   currentSession = {
     id: DB.generateId(),
@@ -603,6 +598,8 @@ function stopRecording() {
   if (currentSession && currentSession.segments.length > 0) {
     document.getElementById('saveZone').style.display = 'block';
     generateInsight();
+    // 如果未关联客户，结束时弹出
+    if (!currentCustomer) showCustomerModal();
   }
 }
 
@@ -860,6 +857,23 @@ function saveConversation() {
   showToast('已保存到客户档案');
   document.getElementById('saveZone').style.display = 'none';
   // Reset
+  currentSession = null;
+  insightTags = []; matchedProducts = [];
+  document.getElementById('srcText').textContent = '等待语音输入...';
+  document.getElementById('srcText').classList.add('placeholder');
+  document.getElementById('dstText').textContent = '';
+  document.getElementById('insightZone').style.display = 'none';
+}
+
+function saveCurrentSession() {
+  if (!currentSession || !currentSession.segments.length) return;
+  currentSession.endTime = new Date().toISOString();
+  currentSession.customerId = currentCustomer.id;
+  const conversations = DB.getConversations();
+  conversations.unshift(currentSession);
+  DB.saveConversations(conversations);
+  showToast('已保存到 ' + currentCustomer.name + ' 的档案');
+  document.getElementById('saveZone').style.display = 'none';
   currentSession = null;
   insightTags = []; matchedProducts = [];
   document.getElementById('srcText').textContent = '等待语音输入...';
